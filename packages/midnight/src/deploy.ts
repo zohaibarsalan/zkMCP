@@ -367,7 +367,7 @@ async function main() {
   await persistWalletState(network, walletCtx);
   await walletCtx.wallet.stop();
   console.log('─── Deployment complete ────────────────────────────────────────\n');
-  console.log('  Next: npm run cli\n');
+  console.log('  Next: npm run demo:authorization\n');
 }
 
 main().catch((err) => {

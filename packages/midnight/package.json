@@ -1,23 +1,22 @@
 {
-  "name": "zkMCP-midnight",
-  "version": "1.0.0",
+  "name": "zkmcp-midnight",
+  "version": "0.1.0",
+  "private": true,
   "type": "module",
-  "description": "A Midnight Network application created with create-mn-app",
-  "author": "",
+  "description": "Midnight authorization proof layer for zkMCP",
   "license": "MIT",
   "scripts": {
     "compile": "compact compile contracts/authorization.compact contracts/managed/authorization",
-    "build": "npx tsc --noEmit || true",
+    "build": "npx tsc --noEmit",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
-    "cli": "npx tsx src/cli.ts",
+    "demo:authorization": "npx tsx src/demo.ts",
     "check-balance": "npx tsx src/check-balance.ts",
     "network": "npx tsx src/network.ts",
     "proof-server:start": "docker compose up -d",
     "proof-server:stop": "docker compose down",
     "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:e2e": "tsx scripts/e2e-check.ts"
+    "test:e2e": "npx tsx src/demo.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -46,9 +45,10 @@
   },
   "keywords": [
     "midnight",
-    "blockchain",
+    "mcp",
     "zero-knowledge",
-    "privacy"
+    "authorization",
+    "ai-agents"
   ],
   "overrides": {
     "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
