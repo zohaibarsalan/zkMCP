@@ -4,10 +4,12 @@ This package contains the Phase 1 zero-knowledge authorization contract and the 
 
 ## Quick start
 
+From the repository root:
+
 ```bash
 npm install
-npm run setup
-npm run demo:authorization
+npm run setup --workspace=@zkmcp/midnight
+npm run demo:authorization --workspace=@zkmcp/midnight
 ```
 
 Requirements: Node.js 22+, Docker Desktop / Compose, and Compact compiler 0.31.1.
@@ -56,6 +58,14 @@ The package pins:
 Without this override, the current dependency graph can install `onchain-runtime-v3` 3.1.0 under `compact-runtime` while Midnight.js 4.1.1 uses 3.0.0. That creates two WASM `StateValue` class identities and contract calls fail with `expected instance of StateValue` even though compile/deploy/read operations succeed.
 
 The override forces one runtime instance and is covered by the end-to-end authorization suite.
+
+## Local observability
+
+The authorization demo uses the shared `@zkmcp/core` evlog setup. Events are stored locally under `.evlog/logs/` and are gitignored. The log schema includes public commitments, transaction metadata, timing, and generic authorization outcomes only; private policy inputs and request values are excluded/redacted.
+
+Detailed private policy denial reasons are collapsed to `policy.AUTHORIZATION_DENIED` before logging.
+
+See [`../../docs/engineering-foundation.md`](../../docs/engineering-foundation.md) for the full error/logging model.
 
 ## Privacy model
 

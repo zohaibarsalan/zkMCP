@@ -12,7 +12,7 @@
     "check": "ultracite check",
     "compile:contracts": "npm run compile --workspace=@zkmcp/midnight",
     "fix": "ultracite fix",
-    "foundation:check": "npm run check && npm run typecheck",
+    "foundation:check": "npm run check && npm run typecheck && npm test && npm run compile:contracts",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspace=@zkmcp/midnight",
     "typecheck": "npm run build --workspaces --if-present"

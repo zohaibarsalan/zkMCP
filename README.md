@@ -12,7 +12,7 @@ Built for the Midnight Hackathon, August 2026 — **AI Track**.
 
 ## Current status
 
-Phase 1 is complete: the core authorization primitive runs end-to-end on a local Midnight devnet.
+Phase 1 and the engineering foundation are complete: the core authorization primitive runs end-to-end on a local Midnight devnet with repo-wide quality gates, typed errors, and privacy-safe local observability.
 
 A Compact contract now proves that a private request satisfies an immutable committed policy covering:
 
@@ -46,23 +46,39 @@ Requirements:
 - Compact compiler 0.31.1
 
 ```bash
-cd packages/midnight
 npm install
-npm run setup
-npm run demo:authorization
+npm run setup --workspace=@zkmcp/midnight
+npm run test:e2e
 ```
 
-`npm run setup` starts a local Midnight node, indexer, and proof server, compiles the Compact contract, creates the local private policy, and deploys the contract.
+The setup command starts a local Midnight node, indexer, and proof server, compiles the Compact contract, creates the local private policy, and deploys the contract.
 
-`npm run demo:authorization` executes the full allow/deny/replay suite against the deployed contract.
+`npm run test:e2e` executes the full allow/deny/replay suite against the deployed contract.
+
+## Engineering foundation
+
+The repository uses **Ultracite + Biome** instead of an ESLint/Prettier stack, plus a shared `@zkmcp/core` package for typed evlog errors and privacy-safe local logging. There are no remote observability drains yet.
+
+```bash
+npm run foundation:check
+```
+
+Local authorization events are written as NDJSON under `.evlog/logs/` and are gitignored. Raw policy values, amounts, thresholds, prompts, tool arguments, witnesses, secrets, and nonces are redacted or excluded from the typed log schema. Detailed policy denial reasons are collapsed before logging so observability does not reveal the shape of a private policy.
+
+See [`docs/engineering-foundation.md`](docs/engineering-foundation.md).
 
 ## Repository
 
 ```text
 zkMCP/
 ├── docs/
+│   ├── engineering-foundation.md
 │   └── phase1-proof-model.md
 ├── packages/
+│   ├── core/
+│   │   └── src/
+│   │       ├── errors.ts
+│   │       └── logging.ts
 │   └── midnight/
 │       ├── contracts/
 │       │   └── authorization.compact
@@ -72,6 +88,7 @@ zkMCP/
 │       │   ├── deploy.ts
 │       │   └── ...
 │       └── docker-compose.yml
+├── biome.jsonc
 └── README.md
 ```
 
@@ -98,6 +115,8 @@ The raw agent rule, tool rule, thresholds, requested amount, approval context, p
 - Midnight.js 4.1.1
 - Proof Server 8.1.0
 - TypeScript / Node.js
+- Ultracite + Biome
+- evlog (local structured observability)
 - Docker
 - Model Context Protocol (Phase 2)
 - Next.js / React (later demo UI)
