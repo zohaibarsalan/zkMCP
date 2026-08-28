@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import * as Rx from 'rxjs';
 
@@ -19,12 +19,14 @@ import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { loadOrCreateAuthorizationPrivateState, witnesses, type AuthorizationPrivateState } from './authorization-state';
+import { Contract as AuthorizationContract } from '../contracts/managed/authorization/contract/index.js';
 
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Identifier under which this contract's private state is stored. The
-// authorization contract has no witnesses, so its private state is empty ({}).
+// Identifier under which the private authorization policy is stored locally.
+// Only a commitment to this policy is anchored on the public ledger.
 const PRIVATE_STATE_ID = 'authorizationPrivateState';
 
 // ─── Network configuration ─────────────────────────────────────────────────────
@@ -79,10 +81,11 @@ if (!fs.existsSync(contractPath)) {
   process.exit(1);
 }
 
-const HelloWorld = await import(pathToFileURL(contractPath).href);
-
-const compiledContract = CompiledContract.make('authorization', HelloWorld.Contract).pipe(
-  CompiledContract.withVacantWitnesses,
+const compiledContract = CompiledContract.make<AuthorizationContract<AuthorizationPrivateState>>(
+  'authorization',
+  AuthorizationContract,
+).pipe(
+  CompiledContract.withWitnesses(witnesses),
   CompiledContract.withCompiledFileAssets(zkConfigPath),
 );
 
@@ -288,17 +291,14 @@ async function main() {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Midnight.js 4.1.x supplies private state via privateStateId +
-      // initialPrivateState (empty here — the authorization contract has no
-      // witnesses). args is the contract constructor's arguments: empty for
-      // authorization's no-arg constructor. (Statically-typed contracts can omit
-      // args entirely; this script loads the contract dynamically, so the
-      // conditional args type widens to any[] and an explicit [] is required.)
+      // The private policy is supplied to Compact through the getPolicy witness.
+      // The constructor commits to it without disclosing its contents.
+      const initialPrivateState = loadOrCreateAuthorizationPrivateState();
       deployed = await deployContract(providers, {
         compiledContract: compiledContract as any,
         args: [],
         privateStateId: PRIVATE_STATE_ID,
-        initialPrivateState: {},
+        initialPrivateState,
       });
       break;
     } catch (err: any) {
