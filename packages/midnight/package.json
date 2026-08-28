@@ -1,12 +1,12 @@
 {
-  "name": "phase0-midnight-smoke",
+  "name": "zkMCP-midnight",
   "version": "1.0.0",
   "type": "module",
   "description": "A Midnight Network application created with create-mn-app",
   "author": "",
   "license": "MIT",
   "scripts": {
-    "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
+    "compile": "compact compile contracts/authorization.compact contracts/managed/authorization",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",

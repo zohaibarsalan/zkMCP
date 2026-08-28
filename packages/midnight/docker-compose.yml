@@ -1,12 +1,12 @@
-# Local Midnight devnet for phase0-midnight-smoke
+# Local Midnight devnet for zkMCP-midnight
 # LOCAL DEVELOPMENT ONLY — do not expose these ports to a public network.
 # Tear down with: docker compose down -v
-name: phase0-midnight-smoke-devnet
+name: zkMCP-midnight-devnet
 
 services:
   node:
     image: midnightntwrk/midnight-node:1.0.0
-    container_name: phase0-midnight-smoke-node
+    container_name: zkMCP-midnight-node
     ports:
       - "9944:9944"
     environment:
@@ -34,12 +34,12 @@ services:
     # indexer whose config hard-requires a Blockfrost API key at boot — the
     # process exits 1 without APP__INFRA__SPO_NODE__BLOCKFROST_ID (verified
     # against 4.3.3 on 2026-07-15). A dummy value satisfies the config loader
-    # on a local devnet (upstream example-hello-world ships the same dummy),
+    # on a local devnet (upstream example-authorization ships the same dummy),
     # so no real Blockfrost credential is needed for zero-config local dev.
     # Do NOT bump to 4.3.4/4.4.0: those tags are pre-alpha integration builds
     # for the future ledger-9/node-2 line, not stable releases.
     image: midnightntwrk/indexer-standalone:4.3.3
-    container_name: phase0-midnight-smoke-indexer
+    container_name: zkMCP-midnight-indexer
     # The node healthcheck above guarantees block 1 exists before this
     # container starts (see comment there). restart: on-failure is kept as a
     # second layer for plain `docker compose up -d` flows without --wait.
@@ -81,7 +81,7 @@ services:
     # spins at 100% CPU forever after receiving /prove, with no log output.
     # Avoid 9.0.0-rc.x tags: pre-release.
     image: midnightntwrk/proof-server:8.1.0
-    container_name: phase0-midnight-smoke-proof-server
+    container_name: zkMCP-midnight-proof-server
     command: ["midnight-proof-server -v"]
     ports:
       - "6300:6300"
