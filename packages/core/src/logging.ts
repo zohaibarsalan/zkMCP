@@ -61,7 +61,7 @@ export interface AuthorizationLogFields {
   network?: string;
   operation?: "authorization";
   result?: "authorized" | "denied" | "failed";
-  stage?: "request" | "policy" | "proof" | "midnight" | "tool";
+  stage?: "request" | "policy" | "proof" | "replay" | "midnight" | "tool";
 }
 
 export function initZkMcpLogger(options: ZkMcpLoggerOptions): void {

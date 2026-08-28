@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  getPrivacySafeErrorMetadata,
   getZkMcpErrorMetadata,
   isZkMcpError,
   policyErrors,
@@ -54,5 +55,21 @@ test("unknown thrown values become Error causes safely", () => {
   assert.equal(
     toErrorCause({ secret: "never stringify arbitrary objects" }).message,
     "Unknown error"
+  );
+});
+
+test("privacy-safe metadata hides which private policy rule denied the action", () => {
+  const amountError = policyErrors.AMOUNT_EXCEEDS_LIMIT();
+  const approvalError = policyErrors.APPROVAL_REQUIRED();
+
+  assert.deepEqual(getPrivacySafeErrorMetadata(amountError), {
+    code: "policy.AUTHORIZATION_DENIED",
+    retryable: false,
+    stage: "policy",
+    status: 403,
+  });
+  assert.equal(
+    getPrivacySafeErrorMetadata(approvalError).code,
+    "policy.AUTHORIZATION_DENIED"
   );
 });

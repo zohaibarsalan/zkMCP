@@ -14,6 +14,13 @@ import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
 import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
 import { CompiledContract } from "@midnight-ntwrk/midnight-js-protocol/compact-js";
+import {
+  getSafeErrorPresentation,
+  isZkMcpError,
+  midnightErrors,
+  proofErrors,
+  toErrorCause,
+} from "@zkmcp/core";
 import * as Rx from "rxjs";
 import { WebSocket } from "ws";
 import { Contract as AuthorizationContract } from "../contracts/managed/authorization/contract/index.js";
@@ -333,11 +340,8 @@ async function main() {
   console.log("  Checking proof server...");
   const proofServerReady = await waitForProofServer();
   if (!proofServerReady) {
-    console.log(
-      "\n  ❌ Proof server not responding. Run: docker compose up -d\n"
-    );
     await walletCtx.wallet.stop();
-    process.exit(1);
+    throw proofErrors.SERVER_UNAVAILABLE();
   }
   process.stdout.write(
     "\r  Proof server ready!                                 \n"
@@ -392,15 +396,12 @@ async function main() {
         fullError.includes("Insufficient Funds") ||
         fullError.includes("could not balance dust");
 
-      // Quiet the first DUST-shortage retry: it's the expected race between
-      // wall-clock projection and block-timestamp accounting and the loud
-      // `Insufficient Funds: <huge number>` message scares first-time users.
-      // Real failures still get the full diagnostic from attempt 2 onward.
+      // Do not print raw SDK errors here: deployment runs with a private policy
+      // witness, so terminal output follows the same privacy boundary as logs.
       if (!(isDustShortage && attempt === 1)) {
-        console.error(`\n  Attempt ${attempt} error: ${errMsg}`);
-        if (errCause && errCause !== errMsg) {
-          console.error(`  Cause: ${errCause}`);
-        }
+        console.error(
+          `\n  Attempt ${attempt} failed (${isDustShortage ? "DUST not ready" : "deployment error"})`
+        );
       }
 
       if (
@@ -408,11 +409,8 @@ async function main() {
         (fullError.includes("Failed to connect to Proof Server") ||
           fullError.includes("connect ECONNREFUSED 127.0.0.1:6300"))
       ) {
-        console.log(
-          "  ❌ Proof server unreachable. Run: docker compose up -d\n"
-        );
         await walletCtx.wallet.stop();
-        process.exit(1);
+        throw proofErrors.SERVER_UNAVAILABLE({ cause: toErrorCause(err) });
       }
 
       if (isDustShortage) {
@@ -434,16 +432,20 @@ async function main() {
             `  ❌ Not enough DUST after ${MAX_RETRIES} retries (current: ${dustBalance.toLocaleString()})`
           );
           await walletCtx.wallet.stop();
-          process.exit(1);
+          throw midnightErrors.TX_SUBMISSION_FAILED({
+            cause: new Error(
+              "DUST generation exhausted the deployment retry budget"
+            ),
+          });
         }
       } else {
-        throw err;
+        throw midnightErrors.TX_SUBMISSION_FAILED({ cause: toErrorCause(err) });
       }
     }
   }
 
   if (!deployed) {
-    throw new Error("Deployment failed after all retries");
+    throw midnightErrors.TX_SUBMISSION_FAILED();
   }
 
   const { contractAddress } = deployed.deployTxData.public;
@@ -461,7 +463,15 @@ async function main() {
   console.log("  Next: npm run demo:authorization\n");
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  const typedError = isZkMcpError(error)
+    ? error
+    : midnightErrors.TX_SUBMISSION_FAILED({ cause: toErrorCause(error) });
+  const safeError = getSafeErrorPresentation(typedError);
+
+  console.error(`\n❌ Deploy failed [${safeError.code}]: ${safeError.message}`);
+  if (safeError.fix) {
+    console.error(`   ${safeError.fix}`);
+  }
   process.exit(1);
 });

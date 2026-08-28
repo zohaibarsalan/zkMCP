@@ -1,6 +1,12 @@
-export type { ZkMcpErrorMetadata, ZkMcpErrorStage } from "./errors.js";
+export type {
+  ZkMcpErrorMetadata,
+  ZkMcpErrorPresentation,
+  ZkMcpErrorStage,
+} from "./errors.js";
 export {
   gatewayErrors,
+  getPrivacySafeErrorMetadata,
+  getSafeErrorPresentation,
   getZkMcpErrorMetadata,
   isZkMcpError,
   midnightErrors,

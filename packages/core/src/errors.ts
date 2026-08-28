@@ -41,6 +41,13 @@ export const policyErrors = defineErrorCatalog("policy", {
     status: 403,
     why: "The action crossed a private approval threshold and no valid approval was supplied.",
   },
+  AUTHORIZATION_DENIED: {
+    fix: "Do not execute the requested action unless a new authorization succeeds.",
+    internal: metadata("policy", false),
+    message: "Action was denied by the private authorization policy",
+    status: 403,
+    why: "One or more private policy constraints were not satisfied.",
+  },
   INVALID_POLICY_STATE: {
     fix: "Repair or recreate the local policy state before authorizing further actions.",
     internal: metadata("policy", false),
@@ -153,6 +160,13 @@ export interface ZkMcpErrorMetadata {
   status: number;
 }
 
+export interface ZkMcpErrorPresentation {
+  code: string;
+  fix?: string;
+  message: string;
+  status: number;
+}
+
 function isStage(value: unknown): value is ZkMcpErrorStage {
   return (
     value === "policy" ||
@@ -165,6 +179,40 @@ function isStage(value: unknown): value is ZkMcpErrorStage {
 
 export function isZkMcpError(error: unknown): error is EvlogError {
   return EvlogError.isEvlogError(error);
+}
+
+export function getPrivacySafeErrorMetadata(
+  error: unknown
+): ZkMcpErrorMetadata {
+  const errorMetadata = getZkMcpErrorMetadata(error);
+
+  if (errorMetadata.stage === "policy" && errorMetadata.status === 403) {
+    return {
+      ...errorMetadata,
+      code: "policy.AUTHORIZATION_DENIED",
+    };
+  }
+
+  return errorMetadata;
+}
+
+export function getSafeErrorPresentation(
+  error: unknown
+): ZkMcpErrorPresentation {
+  if (!isZkMcpError(error)) {
+    return {
+      code: "zkmcp.INTERNAL_ERROR",
+      message: "Unexpected internal zkMCP error",
+      status: 500,
+    };
+  }
+
+  return {
+    code: error.code ?? "zkmcp.INTERNAL_ERROR",
+    ...(error.fix ? { fix: error.fix } : {}),
+    message: error.message,
+    status: error.status,
+  };
 }
 
 export function getZkMcpErrorMetadata(error: unknown): ZkMcpErrorMetadata {

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
@@ -7,6 +8,19 @@ import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
 import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
 import { CompiledContract } from "@midnight-ntwrk/midnight-js-protocol/compact-js";
+import {
+  createAuthorizationLogger,
+  getPrivacySafeErrorMetadata,
+  getSafeErrorPresentation,
+  getZkMcpErrorMetadata,
+  initZkMcpLogger,
+  isZkMcpError,
+  midnightErrors,
+  policyErrors,
+  proofErrors,
+  replayErrors,
+  toErrorCause,
+} from "@zkmcp/core";
 import { WebSocket } from "ws";
 import {
   Contract as AuthorizationContract,
@@ -24,7 +38,6 @@ import { getDeployment, getOrCreateWallet, resolveNetwork } from "./network";
 import { createWallet, persistWalletState, type WalletContext } from "./wallet";
 
 // @ts-expect-error wallet-sdk requires a global WebSocket implementation
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 globalThis.WebSocket = WebSocket;
 
 const PRIVATE_STATE_ID = "authorizationPrivateState";
@@ -38,6 +51,11 @@ const zkConfigPath = path.resolve(
   "managed",
   "authorization"
 );
+
+initZkMcpLogger({
+  service: "zkmcp-midnight",
+  silent: true,
+});
 
 const compiledContract = CompiledContract.make<
   AuthorizationContract<AuthorizationPrivateState>
@@ -99,20 +117,67 @@ function createProviders(walletCtx: WalletContext) {
   };
 }
 
+type DenialReason = "agent" | "amount" | "approval" | "replay";
+
 interface Attempt {
   agent: Uint8Array;
   amount: bigint;
   approved: boolean;
+  denialReason?: DenialReason;
   expectAuthorized: boolean;
   name: string;
   nonce: Uint8Array;
   tool: Uint8Array;
 }
 
+function denialError(reason: DenialReason) {
+  switch (reason) {
+    case "agent":
+      return policyErrors.AGENT_NOT_AUTHORIZED();
+    case "amount":
+      return policyErrors.AMOUNT_EXCEEDS_LIMIT();
+    case "approval":
+      return policyErrors.APPROVAL_REQUIRED();
+    case "replay":
+      return replayErrors.NULLIFIER_ALREADY_USED();
+    default:
+      return policyErrors.INVALID_POLICY_STATE();
+  }
+}
+
+function logStageForError(
+  error: unknown
+): "policy" | "proof" | "replay" | "midnight" {
+  const { stage } = getZkMcpErrorMetadata(error);
+  if (stage === "policy" || stage === "proof" || stage === "replay") {
+    return stage;
+  }
+  return "midnight";
+}
+
+async function queryAuthorizationLedger(
+  providers: ReturnType<typeof createProviders>,
+  contractAddress: string
+) {
+  try {
+    const contractState =
+      await providers.publicDataProvider.queryContractState(contractAddress);
+    if (!contractState) {
+      throw midnightErrors.INDEXER_UNAVAILABLE();
+    }
+    return readAuthorizationLedger(contractState.data);
+  } catch (error) {
+    if (isZkMcpError(error)) {
+      throw error;
+    }
+    throw midnightErrors.INDEXER_UNAVAILABLE({ cause: toErrorCause(error) });
+  }
+}
+
 async function main() {
   const deployment = getDeployment(network);
   if (!deployment) {
-    throw new Error(`No ${network} deployment. Run npm run setup first.`);
+    throw midnightErrors.CONTRACT_UNAVAILABLE();
   }
 
   const privateState = loadOrCreateAuthorizationPrivateState();
@@ -127,13 +192,23 @@ async function main() {
     await persistWalletState(network, walletCtx);
     const providers = createProviders(walletCtx);
 
-    const deployed: any = await findDeployedContract(providers, {
-      compiledContract: compiledContract as any,
-      contractAddress: deployment.address,
-      initialPrivateState: privateState,
-      privateStateId: PRIVATE_STATE_ID,
-    });
+    let deployed: any;
+    try {
+      deployed = await findDeployedContract(providers, {
+        compiledContract: compiledContract as any,
+        contractAddress: deployment.address,
+        initialPrivateState: privateState,
+        privateStateId: PRIVATE_STATE_ID,
+      });
+    } catch (error) {
+      throw midnightErrors.CONTRACT_UNAVAILABLE({ cause: toErrorCause(error) });
+    }
 
+    const initialLedger = await queryAuthorizationLedger(
+      providers,
+      deployment.address
+    );
+    const publicPolicyCommitment = hex(initialLedger.policyCommitment);
     const validAgent = identifierDigest(DEMO_AGENT_NAME);
     const validTool = identifierDigest(DEMO_TOOL_NAME);
     const firstNonce = bytes32();
@@ -152,6 +227,7 @@ async function main() {
         agent: validAgent,
         amount: 8_000n,
         approved: true,
+        denialReason: "amount",
         expectAuthorized: false,
         name: "over private maximum",
         nonce: bytes32(),
@@ -161,6 +237,7 @@ async function main() {
         agent: validAgent,
         amount: 4_500n,
         approved: false,
+        denialReason: "approval",
         expectAuthorized: false,
         name: "approval required but absent",
         nonce: bytes32(),
@@ -179,6 +256,7 @@ async function main() {
         agent: identifierDigest("UntrustedAgent"),
         amount: 1_000n,
         approved: false,
+        denialReason: "agent",
         expectAuthorized: false,
         name: "wrong agent",
         nonce: bytes32(),
@@ -188,6 +266,7 @@ async function main() {
         agent: validAgent,
         amount: 2_750n,
         approved: false,
+        denialReason: "replay",
         expectAuthorized: false,
         name: "replay first authorization",
         nonce: firstNonce,
@@ -206,9 +285,18 @@ async function main() {
 
     let passed = 0;
     for (const attempt of attempts) {
+      const authorizationLog = createAuthorizationLogger({
+        authorization: { policyCommitment: publicPolicyCommitment },
+        contract: { address: deployment.address },
+        network,
+        stage: "request",
+      });
+      const startedAt = performance.now();
+
       process.stdout.write(
         `${attempt.expectAuthorized ? "ALLOW" : "DENY "}  ${attempt.name.padEnd(31)} `
       );
+
       try {
         const tx = await deployed.callTx.authorize(
           attempt.agent,
@@ -217,33 +305,87 @@ async function main() {
           attempt.approved,
           attempt.nonce
         );
+        const proofDurationMs = Math.round(performance.now() - startedAt);
+
         if (!attempt.expectAuthorized) {
+          const typedError = midnightErrors.INVALID_STATE();
+          authorizationLog.set({
+            authorization: {
+              policyCommitment: publicPolicyCommitment,
+              proofDurationMs,
+            },
+            failure: getPrivacySafeErrorMetadata(typedError),
+            midnight: {
+              blockHeight: tx.public.blockHeight,
+              transactionId: tx.public.txId,
+            },
+            result: "failed",
+            stage: "midnight",
+          });
+          authorizationLog.emit();
           console.log("❌ unexpectedly authorized");
           continue;
         }
+
+        authorizationLog.set({
+          authorization: {
+            policyCommitment: publicPolicyCommitment,
+            proofDurationMs,
+          },
+          midnight: {
+            blockHeight: tx.public.blockHeight,
+            transactionId: tx.public.txId,
+          },
+          result: "authorized",
+          stage: "midnight",
+        });
+        authorizationLog.emit();
         console.log(
           `✅ tx ${tx.public.txId.slice(0, 12)}… @ block ${tx.public.blockHeight}`
         );
         passed += 1;
       } catch (error) {
-        if (attempt.expectAuthorized) {
-          console.log(
-            `❌ ${error instanceof Error ? error.message : String(error)}`
-          );
+        const proofDurationMs = Math.round(performance.now() - startedAt);
+
+        if (!attempt.expectAuthorized && attempt.denialReason) {
+          const typedError = denialError(attempt.denialReason);
+          authorizationLog.set({
+            authorization: {
+              policyCommitment: publicPolicyCommitment,
+              proofDurationMs,
+            },
+            failure: getPrivacySafeErrorMetadata(typedError),
+            result: "denied",
+            stage: logStageForError(typedError),
+          });
+          authorizationLog.emit();
+          console.log("✅ blocked");
+          passed += 1;
           continue;
         }
-        console.log("✅ blocked");
-        passed += 1;
+
+        const typedError = proofErrors.GENERATION_FAILED({
+          cause: toErrorCause(error),
+        });
+        const safeError = getSafeErrorPresentation(typedError);
+        authorizationLog.set({
+          authorization: {
+            policyCommitment: publicPolicyCommitment,
+            proofDurationMs,
+          },
+          failure: getPrivacySafeErrorMetadata(typedError),
+          result: "failed",
+          stage: "proof",
+        });
+        authorizationLog.emit();
+        console.log(`❌ [${safeError.code}] ${safeError.message}`);
       }
     }
 
-    const contractState = await providers.publicDataProvider.queryContractState(
+    const ledger = await queryAuthorizationLedger(
+      providers,
       deployment.address
     );
-    if (!contractState) {
-      throw new Error("Authorization contract state not found in indexer");
-    }
-    const ledger = readAuthorizationLedger(contractState.data);
 
     console.log("\nPublic Midnight state");
     console.log(`  policy commitment:     ${hex(ledger.policyCommitment)}`);
@@ -257,15 +399,8 @@ async function main() {
       "  policy secret, agent/tool policy, amounts, threshold, approval context"
     );
 
-    if (passed !== attempts.length) {
-      throw new Error(
-        `Phase 1 demo failed: ${passed}/${attempts.length} cases behaved as expected`
-      );
-    }
-    if (ledger.authorizationCount < 2n) {
-      throw new Error(
-        `Expected at least 2 committed authorizations, got ${ledger.authorizationCount}`
-      );
+    if (passed !== attempts.length || ledger.authorizationCount < 2n) {
+      throw midnightErrors.INVALID_STATE();
     }
 
     console.log(
@@ -277,9 +412,23 @@ async function main() {
 }
 
 main().catch((error) => {
+  const typedError = isZkMcpError(error)
+    ? error
+    : midnightErrors.INVALID_STATE({ cause: toErrorCause(error) });
+  const safeError = getSafeErrorPresentation(typedError);
+  const failureLog = createAuthorizationLogger({
+    failure: getPrivacySafeErrorMetadata(typedError),
+    network,
+    result: "failed",
+    stage: logStageForError(typedError),
+  });
+  failureLog.emit();
+
   console.error(
-    "\n❌ Phase 1 demo failed:",
-    error instanceof Error ? error.message : error
+    `\n❌ Phase 1 demo failed [${safeError.code}]: ${safeError.message}`
   );
+  if (safeError.fix) {
+    console.error(`   ${safeError.fix}`);
+  }
   process.exit(1);
 });
