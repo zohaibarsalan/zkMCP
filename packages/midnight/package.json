@@ -1,22 +1,32 @@
 {
-  "name": "zkmcp-midnight",
+  "name": "@zkmcp/midnight",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Midnight authorization proof layer for zkMCP",
+  "keywords": [
+    "midnight",
+    "mcp",
+    "zero-knowledge",
+    "authorization",
+    "ai-agents"
+  ],
   "license": "MIT",
+  "type": "module",
   "scripts": {
-    "compile": "compact compile contracts/authorization.compact contracts/managed/authorization",
     "build": "npx tsc --noEmit",
-    "setup": "npx tsx src/setup.ts",
-    "deploy": "npx tsx src/deploy.ts",
-    "demo:authorization": "npx tsx src/demo.ts",
     "check-balance": "npx tsx src/check-balance.ts",
+    "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state",
+    "compile": "compact compile contracts/authorization.compact contracts/managed/authorization",
+    "demo:authorization": "npx tsx src/demo.ts",
+    "deploy": "npx tsx src/deploy.ts",
     "network": "npx tsx src/network.ts",
     "proof-server:start": "docker compose up -d",
     "proof-server:stop": "docker compose down",
-    "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state",
+    "setup": "npx tsx src/setup.ts",
     "test:e2e": "npx tsx src/demo.ts"
+  },
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -42,15 +52,5 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  },
-  "keywords": [
-    "midnight",
-    "mcp",
-    "zero-knowledge",
-    "authorization",
-    "ai-agents"
-  ],
-  "overrides": {
-    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   }
 }

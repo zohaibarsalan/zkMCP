@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core"],
+  "files": {
+    "includes": [
+      "!!**/contracts/managed",
+      "!!**/.midnight-wallet-state",
+      "!!**/midnight-level-db",
+      "!!**/.evlog"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": ["packages/midnight/src/**/*.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noAwaitInLoops": "off",
+            "noBarrelFile": "off",
+            "noNamespaceImport": "off"
+          },
+          "style": {
+            "noExportedImports": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/midnight/src/deploy.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off"
+          },
+          "suspicious": {
+            "noUnnecessaryConditions": "off"
+          }
+        }
+      }
+    }
+  ]
+}

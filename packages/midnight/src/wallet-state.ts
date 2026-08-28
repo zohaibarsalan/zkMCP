@@ -11,21 +11,25 @@
 // on each child wallet class; wallet.ts is the glue that uses them, and this
 // file is the on-disk format underneath.
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-import type { NetworkId } from './network';
+import type { NetworkId } from "./network";
 
-export const WALLET_STATE_DIR = '.midnight-wallet-state';
+export const WALLET_STATE_DIR = ".midnight-wallet-state";
 export const WALLET_STATE_VERSION = 1 as const;
 
-export type ChildKind = 'shielded' | 'unshielded' | 'dust';
-export const CHILD_KINDS: readonly ChildKind[] = ['shielded', 'unshielded', 'dust'] as const;
+export type ChildKind = "shielded" | "unshielded" | "dust";
+export const CHILD_KINDS: readonly ChildKind[] = [
+  "shielded",
+  "unshielded",
+  "dust",
+] as const;
 
 export interface PersistedWalletState {
+  dust?: string;
   shielded?: unknown;
   unshielded?: unknown;
-  dust?: string;
 }
 
 export interface FsOptions {
@@ -36,7 +40,11 @@ function networkDir(network: NetworkId, opts: FsOptions = {}): string {
   return path.join(opts.cwd ?? process.cwd(), WALLET_STATE_DIR, network);
 }
 
-function statePath(network: NetworkId, kind: ChildKind, opts: FsOptions = {}): string {
+function statePath(
+  network: NetworkId,
+  kind: ChildKind,
+  opts: FsOptions = {}
+): string {
   return path.join(networkDir(network, opts), `${kind}.json`);
 }
 
@@ -48,15 +56,23 @@ function atomicWrite(file: string, content: string): void {
 }
 
 interface VersionedState<T> {
-  version: typeof WALLET_STATE_VERSION;
   state: T;
+  version: typeof WALLET_STATE_VERSION;
 }
 
 function readVersionedState<T>(file: string): T | undefined {
-  if (!fs.existsSync(file)) return undefined;
+  if (!fs.existsSync(file)) {
+    return undefined;
+  }
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as VersionedState<T>;
-    if (!parsed || typeof parsed !== 'object' || parsed.version !== WALLET_STATE_VERSION) {
+    const parsed = JSON.parse(
+      fs.readFileSync(file, "utf-8")
+    ) as VersionedState<T>;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      parsed.version !== WALLET_STATE_VERSION
+    ) {
       return undefined;
     }
     return parsed.state;
@@ -67,29 +83,46 @@ function readVersionedState<T>(file: string): T | undefined {
 }
 
 function writeVersionedState<T>(file: string, state: T): void {
-  const payload: VersionedState<T> = { version: WALLET_STATE_VERSION, state };
+  const payload: VersionedState<T> = { state, version: WALLET_STATE_VERSION };
   atomicWrite(file, `${JSON.stringify(payload)}\n`);
 }
 
-export function loadWalletState(network: NetworkId, opts: FsOptions = {}): PersistedWalletState {
+export function loadWalletState(
+  network: NetworkId,
+  opts: FsOptions = {}
+): PersistedWalletState {
   return {
-    shielded: readVersionedState(statePath(network, 'shielded', opts)),
-    unshielded: readVersionedState(statePath(network, 'unshielded', opts)),
-    dust: readVersionedState<string>(statePath(network, 'dust', opts)),
+    dust: readVersionedState<string>(statePath(network, "dust", opts)),
+    shielded: readVersionedState(statePath(network, "shielded", opts)),
+    unshielded: readVersionedState(statePath(network, "unshielded", opts)),
   };
 }
 
 export function saveWalletState(
   network: NetworkId,
   state: PersistedWalletState,
-  opts: FsOptions = {},
+  opts: FsOptions = {}
 ): void {
-  if (state.shielded !== undefined) writeVersionedState(statePath(network, 'shielded', opts), state.shielded);
-  if (state.unshielded !== undefined) writeVersionedState(statePath(network, 'unshielded', opts), state.unshielded);
-  if (state.dust !== undefined) writeVersionedState(statePath(network, 'dust', opts), state.dust);
+  if (state.shielded !== undefined) {
+    writeVersionedState(statePath(network, "shielded", opts), state.shielded);
+  }
+  if (state.unshielded !== undefined) {
+    writeVersionedState(
+      statePath(network, "unshielded", opts),
+      state.unshielded
+    );
+  }
+  if (state.dust !== undefined) {
+    writeVersionedState(statePath(network, "dust", opts), state.dust);
+  }
 }
 
-export function clearWalletState(network: NetworkId, opts: FsOptions = {}): void {
+export function clearWalletState(
+  network: NetworkId,
+  opts: FsOptions = {}
+): void {
   const dir = networkDir(network, opts);
-  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { force: true, recursive: true });
+  }
 }
