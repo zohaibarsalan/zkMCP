@@ -11,10 +11,14 @@
   "scripts": {
     "check": "ultracite check",
     "compile:contracts": "npm run compile --workspace=@zkmcp/midnight",
+    "demo:gateway": "npm run demo:gateway --workspace=@zkmcp/gateway",
     "fix": "ultracite fix",
     "foundation:check": "npm run check && npm run typecheck && npm test && npm run compile:contracts",
+    "serve:gateway-demo": "npm run serve:demo --workspace=@zkmcp/gateway",
+    "setup:midnight": "npm run setup --workspace=@zkmcp/midnight",
+    "stop:midnight": "npm run proof-server:stop --workspace=@zkmcp/midnight",
     "test": "npm run test --workspaces --if-present",
-    "test:e2e": "npm run test:e2e --workspace=@zkmcp/midnight",
+    "test:midnight": "npm run test:e2e --workspace=@zkmcp/midnight",
     "typecheck": "npm run build --workspaces --if-present"
   },
   "devDependencies": {

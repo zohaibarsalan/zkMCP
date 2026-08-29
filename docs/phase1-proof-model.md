@@ -1,18 +1,22 @@
 # Phase 1 proof model
 
-Phase 1 establishes the cryptographic primitive that zkMCP will place in front of MCP tool calls.
+Phase 1 established the cryptographic primitive zkMCP now uses in front of MCP tool calls: a private policy is committed once, reopened through a private witness during authorization, and enforced inside a Compact circuit without publishing the policy rules.
+
+The Phase 1 checkpoint began with one payment-style tool and private numeric/approval constraints. Phase 2 kept the same proof model and expanded the live contract to three MCP tool classes. This document describes the proof model as it exists now; the Phase 2 MCP integration is documented separately in [`phase2-mcp-gateway.md`](phase2-mcp-gateway.md).
 
 ## Claim proved
 
-For every committed authorization transaction, Midnight proves that the private request satisfies the exact private policy whose commitment was pinned when the contract was deployed.
+For every committed authorization transaction, Midnight proves that the private request satisfied the exact private policy whose commitment was pinned when the contract was deployed.
 
-The Phase 1 policy constrains:
+The current policy constrains:
 
 - agent identity
-- tool identity
-- maximum numeric amount
-- a human-approval threshold
-- one-time execution via a nonce-derived nullifier
+- allowed tool class
+- document resource membership
+- email human approval
+- private payment maximum
+- private payment approval threshold
+- one-time execution through a nonce-derived nullifier
 
 ## Private policy
 
@@ -22,48 +26,79 @@ The local witness provides:
 Policy {
   secret
   allowedAgent
-  allowedTool
-  maxAmount
-  approvalThreshold
+  documentsTool
+  emailTool
+  paymentsTool
+  allowedResource
+  maxPaymentAmount
+  paymentApprovalThreshold
 }
 ```
 
-`secret` is a random 32-byte value. The remaining fields are policy rules.
+`secret` is a random 32-byte value. The remaining fields are private policy rules or private digests of policy identifiers.
 
-The contract constructor computes a domain-separated `persistentHash` over the complete policy and writes only that hash to the sealed public `policyCommitment` ledger field.
+The constructor computes a domain-separated `persistentHash` over the complete policy and writes only that hash to the sealed public `policyCommitment` ledger field.
 
-Because every later call recomputes the commitment inside the circuit and asserts equality with the sealed ledger commitment, a prover cannot replace the user's policy with an easier policy just before requesting authorization.
+Because every later authorization recomputes the commitment inside the circuit and asserts equality with the sealed ledger commitment, a prover cannot replace the user's policy with an easier one immediately before requesting authorization.
 
 ## Private request
 
-`authorize` receives:
+`authorize` receives circuit inputs representing:
 
 ```text
 requestAgent
 requestTool
+requestResource
 requestAmount
 approved
 nonce
 ```
 
-These values are circuit inputs. zkMCP does not disclose them directly to ledger state.
+They are not disclosed directly into ledger fields.
 
-The circuit enforces:
+The circuit first enforces:
 
 ```text
 hash(privatePolicy) == committedPolicy
 requestAgent == policy.allowedAgent
-requestTool == policy.allowedTool
-requestAmount <= policy.maxAmount
-requestAmount <= policy.approvalThreshold OR approved == true
+requestTool is one of the private allowed tool digests
+```
+
+It then selects the relevant private policy branch.
+
+### Documents
+
+```text
+requestTool == documents.read
+requestResource == policy.allowedResource
+```
+
+### Email
+
+```text
+requestTool == email.send
+approved == true
+```
+
+### Payments
+
+```text
+requestTool == payments.transfer
+requestAmount <= policy.maxPaymentAmount
+requestAmount <= policy.paymentApprovalThreshold OR approved == true
+```
+
+Finally, every successful branch requires:
+
+```text
 nullifier(policy.secret, nonce) has not already been consumed
 ```
 
-If any condition fails, the authorization circuit aborts and no authorization receipt is committed.
+If any constraint fails, the authorization circuit aborts and no successful authorization receipt is committed.
 
 ## Public receipt
 
-A successful authorization discloses only:
+A successful authorization exposes public receipt material derived from:
 
 ```text
 policyCommitment
@@ -71,44 +106,51 @@ executionCommitment
 nullifier
 ```
 
-The execution commitment is a domain-separated hash over the committed policy and the private request. The random 32-byte nonce prevents otherwise-identical requests from producing a trivially guessable preimage.
+The surrounding Midnight transaction also gives zkMCP a transaction ID, block height, contract address, and network identifier that can be returned to an MCP client.
 
-The nullifier is a domain-separated hash of the policy secret and nonce. It is inserted into a public set exactly once. Reusing the same execution nonce fails the circuit.
+The execution commitment is a domain-separated hash over the committed policy and private request. The nonce keeps otherwise-identical executions distinct.
 
-The contract also exposes an authorization counter and the most recent execution commitment/nullifier for the Phase 1 demo.
+The nullifier is a domain-separated hash of the policy secret and nonce. It is inserted into a public set exactly once, preventing reuse of the same authorization context.
 
-## What the chain does not receive
+## What the chain does not receive as raw ledger fields
 
-The ledger schema contains no fields for:
+The authorization ledger schema has no raw fields for:
 
-- raw policy secret
-- allowed agent
-- allowed tool
-- maximum amount
+- policy secret
+- allowed agent identifier
+- allowed tool identifiers
+- allowed matter/resource identifier
+- maximum payment amount
 - approval threshold
-- requested amount
+- requested payment amount
 - approval flag
 - raw nonce
+- prompt
+- arbitrary MCP tool arguments
 
-Only commitments, nullifiers, and receipt metadata are deliberately disclosed.
+Only deliberately disclosed commitments/nullifiers and normal transaction metadata are public.
 
-## Demo cases
+## Direct Midnight validation
 
-`npm run demo:authorization` exercises six cases against a live local Midnight node and proof server:
+The current direct Midnight suite exercises all three policy branches:
 
-| Case | Expected |
-| --- | --- |
-| Correct agent/tool, 2,750, no approval | authorized |
-| Correct agent/tool, 8,000 | denied |
-| 4,500 without approval | denied |
-| 4,500 with approval | authorized |
-| Wrong agent | denied |
-| Replay first successful nonce | denied |
+```text
+ALLOW  document in assigned matter
+DENY   document in unrelated matter
+DENY   external email without approval
+ALLOW  external email with approval
+ALLOW  payment below private threshold
+DENY   payment above private maximum
+DENY   payment requiring approval without approval
+ALLOW  payment requiring approval with approval
+DENY   wrong agent
+DENY   unknown tool
+```
 
-Successful cases generate real Midnight proofs and land on the local chain. Denied cases fail the constrained authorization path and do not increment the authorization counter.
+The validated suite passed **10/10** against the local Midnight node/indexer/proof-server stack. Successful cases generated real proofs and finalized transactions; denied cases failed the constrained authorization path.
 
-## Current limitation
+## Deliberate current limitation
 
-Phase 1 intentionally pins one immutable policy per contract deployment. Policy rotation, multiple agents/tools per policy, delegated capabilities, and the MCP gateway are later phases.
+The current contract still pins one immutable private policy per deployment. Policy rotation, multiple policy versions, delegated agent identities, revocation, and signed approval capabilities are intentionally outside this first primitive.
 
-This phase proves the primitive first: **a private rule set can be committed once and later opened inside a ZK circuit to authorize an action without publishing the rule set itself.**
+The important property is already established: **zkMCP can prove that a concrete agent action satisfies a committed private rule set without publishing that rule set.**

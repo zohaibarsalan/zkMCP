@@ -1,27 +1,68 @@
-# zkMCP Midnight package
+# @zkmcp/midnight
 
-This package contains the Phase 1 zero-knowledge authorization contract and the local Midnight development environment used by zkMCP.
+Midnight/Compact authorization layer for zkMCP.
+
+This package owns the private authorization policy, Compact contract, wallet/network integration, and reusable TypeScript client consumed by the MCP gateway.
 
 ## Quick start
 
 From the repository root:
 
 ```bash
-npm install
-npm run setup --workspace=@zkmcp/midnight
-npm run demo:authorization --workspace=@zkmcp/midnight
+npm run setup:midnight
+npm run demo:gateway
 ```
 
 Requirements: Node.js 22+, Docker Desktop / Compose, and Compact compiler 0.31.1.
 
-## What `setup` does
+## Compact policy
 
-1. Starts a local Midnight node, indexer, and proof server with Docker Compose.
-2. Compiles `contracts/authorization.compact`.
-3. Creates a local private policy if one does not already exist.
-4. Deploys the contract with a commitment to that policy.
+The current private policy covers:
 
-The private policy is stored in `.zkmcp-policy.json`, which is gitignored and created with user-only file permissions. Wallet/network/private-state files are also gitignored.
+- configured agent identity
+- `documents.read`
+- `email.send`
+- `payments.transfer`
+- one allowed document resource/matter
+- private maximum payment amount
+- private payment approval threshold
+- replay protection through fresh nonce-derived nullifiers
+
+Only a salted policy commitment is pinned publicly at deployment.
+
+Every authorization recomputes that commitment inside the ZK circuit before checking the appropriate tool-policy branch.
+
+## Reusable client
+
+The package exports:
+
+```ts
+import { createMidnightAuthorizationClient } from "@zkmcp/midnight";
+
+const client = await createMidnightAuthorizationClient();
+
+const receipt = await client.authorize({
+  agent: "LegalAgent",
+  tool: "documents.read",
+  resource: "matter:thompson",
+});
+
+await client.close();
+```
+
+The client generates the nonce itself, submits the Compact call, maps failures to typed zkMCP errors, and returns only public receipt material.
+
+Deployment, wallet-cache, and private-state paths are anchored to this package, so the client works when consumed from another workspace such as `@zkmcp/gateway`.
+
+## Local private state
+
+The policy is stored locally in:
+
+```text
+.zkmcp-policy.json
+```
+
+It is gitignored and written with user-only permissions. Wallet/network/private-state files and local LevelDB data are also ignored.
 
 ## Scripts
 
@@ -30,8 +71,8 @@ The private policy is stored in `.zkmcp-policy.json`, which is gitignored and cr
 | `npm run compile` | Compile the Compact authorization contract |
 | `npm run build` | Run TypeScript type checking |
 | `npm run setup` | Start local Midnight services, compile, and deploy |
-| `npm run demo:authorization` | Run the six-case Phase 1 authorization demo |
-| `npm run test:e2e` | Alias for the Phase 1 authorization demo/suite |
+| `npm run demo:authorization` | Run the direct multi-tool Midnight authorization suite |
+| `npm run test:e2e` | Alias for the direct authorization suite |
 | `npm run check-balance` | Inspect local Midnight wallet balances |
 | `npm run proof-server:start` | Start Compose services |
 | `npm run proof-server:stop` | Stop Compose services |
@@ -47,7 +88,7 @@ The private policy is stored in `.zkmcp-policy.json`, which is gitignored and cr
 
 ## Dependency compatibility note
 
-The package pins:
+The workspace pins:
 
 ```json
 "overrides": {
@@ -55,18 +96,11 @@ The package pins:
 }
 ```
 
-Without this override, the current dependency graph can install `onchain-runtime-v3` 3.1.0 under `compact-runtime` while Midnight.js 4.1.1 uses 3.0.0. That creates two WASM `StateValue` class identities and contract calls fail with `expected instance of StateValue` even though compile/deploy/read operations succeed.
+Without the override, the current dependency graph can install `onchain-runtime-v3` 3.1.0 under `compact-runtime` while Midnight.js 4.1.1 uses 3.0.0. That creates two WASM `StateValue` class identities and contract calls fail with `expected instance of StateValue` even though compile/deploy/read operations succeed.
 
-The override forces one runtime instance and is covered by the end-to-end authorization suite.
+The override forces one runtime instance and is covered by the real authorization runs.
 
-## Local observability
+## Documentation
 
-The authorization demo uses the shared `@zkmcp/core` evlog setup. Events are stored locally under `.evlog/logs/` and are gitignored. The log schema includes public commitments, transaction metadata, timing, and generic authorization outcomes only; private policy inputs and request values are excluded/redacted.
-
-Detailed private policy denial reasons are collapsed to `policy.AUTHORIZATION_DENIED` before logging.
-
-See [`../../docs/engineering-foundation.md`](../../docs/engineering-foundation.md) for the full error/logging model.
-
-## Privacy model
-
-See [`../../docs/phase1-proof-model.md`](../../docs/phase1-proof-model.md).
+- [`../../docs/phase1-proof-model.md`](../../docs/phase1-proof-model.md) — proof/privacy model
+- [`../../docs/phase2-mcp-gateway.md`](../../docs/phase2-mcp-gateway.md) — MCP integration
