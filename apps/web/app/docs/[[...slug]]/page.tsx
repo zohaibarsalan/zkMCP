@@ -3,6 +3,8 @@ import {
   DocsDescription,
   DocsPage,
   DocsTitle,
+  MarkdownCopyButton,
+  ViewOptionsPopover,
 } from "fumadocs-ui/layouts/docs/page";
 import { notFound } from "next/navigation";
 import { getMDXComponents } from "@/components/mdx";
@@ -18,10 +20,24 @@ export default async function Page(props: {
   }
 
   const MDX = page.data.body;
+  const rawUrl = `https://raw.githubusercontent.com/zohaibarsalan/zkMCP/main/apps/web/content/docs/${page.path}`;
+  const githubUrl = `https://github.com/zohaibarsalan/zkMCP/blob/main/apps/web/content/docs/${page.path}`;
 
   return (
-    <DocsPage full={page.data.full} toc={page.data.toc}>
-      <DocsTitle>{page.data.title}</DocsTitle>
+    <DocsPage
+      full={page.data.full}
+      tableOfContent={{ single: false }}
+      toc={page.data.toc}
+    >
+      <div className="zkmcp-page-heading">
+        <DocsTitle>{page.data.title}</DocsTitle>
+        <div className="zkmcp-page-actions">
+          <MarkdownCopyButton markdownUrl={rawUrl}>
+            Copy page
+          </MarkdownCopyButton>
+          <ViewOptionsPopover githubUrl={githubUrl} markdownUrl={rawUrl} />
+        </div>
+      </div>
       {page.data.description ? (
         <DocsDescription>{page.data.description}</DocsDescription>
       ) : null}

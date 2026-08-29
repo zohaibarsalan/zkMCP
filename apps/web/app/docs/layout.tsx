@@ -7,7 +7,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       {...baseOptions()}
-      sidebar={{ defaultOpenLevel: 1 }}
+      containerProps={{ className: "zkmcp-docs-layout" }}
+      sidebar={{ defaultOpenLevel: 0 }}
+      tabs={false}
       tree={source.getPageTree()}
     >
       {children}
