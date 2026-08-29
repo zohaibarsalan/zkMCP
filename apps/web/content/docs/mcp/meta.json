@@ -1,4 +1,13 @@
 {
-  "title": "MCP gateway",
-  "pages": ["index", "tools-list", "tools-call", "trusted-metadata"]
+  "title": "MCP integration",
+  "pages": [
+    "index",
+    "wrapping-a-server",
+    "add-a-protected-tool",
+    "integration-patterns",
+    "tools-list",
+    "tools-call",
+    "agent-identity",
+    "trusted-metadata"
+  ]
 }

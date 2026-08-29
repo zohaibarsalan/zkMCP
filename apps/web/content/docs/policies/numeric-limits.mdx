@@ -1,23 +1,188 @@
 ---
 title: Private numeric limits
-description: Prove that a payment satisfies hidden numeric thresholds without publishing the thresholds.
+description: Prove that an action stays inside hidden numeric limits, with optional approval escalation, without publishing the threshold values.
 ---
 
-The payment policy contains two private numbers:
+Private numeric limits are useful when the authorization rule itself is sensitive.
+
+An organization may want an agent to prove:
+
+```text
+requestedAmount <= privateMaximum
+```
+
+without publishing the actual maximum to every verifier or observer.
+
+The current `payments.transfer` branch demonstrates two private numbers:
 
 ```text
 maxPaymentAmount
 paymentApprovalThreshold
 ```
 
-A transfer must satisfy the hard maximum. If it crosses the approval threshold, a trusted approval must also be present.
+## Gateway mapping
 
-```text
-amount <= maxPaymentAmount
-AND
-(amount <= paymentApprovalThreshold OR approved == true)
+A payment tool may receive:
+
+```json
+{
+  "amount": 2750,
+  "recipient": "client-settlement-account",
+  "memo": "Thompson settlement disbursement"
+}
 ```
 
-The demo policy uses a £5,000 hard maximum and a £4,000 approval threshold. Those numbers are visible to the local policy owner in the playground, but they are not written to the public Midnight ledger.
+The current normalizer validates `amount` as a non-negative safe integer and converts it to a bigint for the authorization envelope:
 
-An £8,000 request remains denied even when approval is present because approval cannot override the hard maximum.
+```ts
+{
+  agent: "LegalAgent",
+  tool: "payments.transfer",
+  amount: 2750n,
+  approved: false
+}
+```
+
+The recipient and memo remain application arguments but are not currently part of the numeric policy statement.
+
+## Hard maximum
+
+The first payment constraint is absolute:
+
+```text
+requestAmount <= policy.maxPaymentAmount
+```
+
+Approval cannot override it.
+
+For the demo:
+
+```text
+maxPaymentAmount = £5,000
+```
+
+so an £8,000 request fails even when `approved == true`.
+
+## Approval threshold
+
+The second constraint provides an escalation zone:
+
+```text
+requestAmount <= paymentApprovalThreshold
+OR approved == true
+```
+
+The demo uses:
+
+```text
+paymentApprovalThreshold = £4,000
+```
+
+The resulting policy has three regions:
+
+```text
+0                           £4,000                     £5,000
+├─────────────────────────────┼───────────────────────────┼────────→
+│                             │                           │
+│ allow without approval      │ approval required         │ deny
+│                             │                           │ even with approval
+```
+
+## Example outcomes
+
+| Amount | Trusted approval | Result | Why |
+| ---: | --- | --- | --- |
+| £2,750 | absent | authorized | below approval threshold and hard maximum |
+| £4,500 | absent | denied | below hard maximum but approval required |
+| £4,500 | verified | authorized | approval satisfies escalation rule |
+| £8,000 | verified | denied | exceeds hard maximum |
+
+The caller does not receive the exact private reason for a denial. Public policy failures collapse to `policy.AUTHORIZATION_DENIED`.
+
+## What the verifier learns
+
+A successful public receipt can prove that the authorization branch completed under the committed policy without exposing:
+
+```text
+requested amount
+private maximum
+approval threshold
+approval token
+```
+
+The local gateway/prover still knows the request amount and its own private policy. Zero knowledge is being used to separate the **private authorization environment** from the **public verification state**.
+
+## Why a random policy secret is included
+
+A numeric policy alone can be low entropy.
+
+If the commitment were simply:
+
+```text
+hash(maximum = 5000, threshold = 4000, ...)
+```
+
+an observer might enumerate plausible small values and compare hashes.
+
+The policy commitment therefore includes a random private 32-byte secret in addition to the numeric rules.
+
+## Numeric representation
+
+The Compact contract uses:
+
+```text
+Uint<64>
+```
+
+for the current amount fields.
+
+The TypeScript gateway currently accepts safe non-negative JavaScript integers and converts them to bigint before the Midnight call.
+
+For real financial systems, amount representation needs a stricter domain model:
+
+```text
+minor currency units (e.g. pence/cents)
+currency code
+asset/token identifier
+rounding rules
+maximum precision
+```
+
+A production proof should not rely on ambiguous floating-point monetary values.
+
+## Stronger numeric policies
+
+The same pattern can express more than payments.
+
+Examples:
+
+```text
+API cost <= private budget
+compute request <= private resource quota
+trade size <= private risk limit
+discount <= private sales authority
+refund <= private approval limit
+data export rows <= private threshold
+```
+
+The important part is defining the requested quantity and private threshold in a deterministic circuit-friendly representation.
+
+## Current coverage boundary
+
+The payment policy does not currently constrain:
+
+```text
+recipient
+currency
+memo
+matter/client context
+payment rail
+```
+
+Therefore the current receipt should be read precisely:
+
+> the requested numeric amount satisfied the committed payment-limit rules for this authorized agent/tool branch.
+
+It is not yet a proof that the exact full financial transfer payload was permitted.
+
+See [Circuit constraints](/docs/midnight/circuit-constraints) for the complete branch predicate and [Authorization envelope](/docs/architecture/authorization-envelope) for how application arguments become proof facts.

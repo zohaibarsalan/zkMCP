@@ -5,6 +5,7 @@
     "what-zkmcp-proves",
     "privacy-model",
     "threat-model",
+    "secret-handling",
     "logging-and-errors"
   ]
 }

@@ -1,53 +1,90 @@
 ---
 title: Introduction
-description: zkMCP is a zero-knowledge authorization gateway that sits between AI agents and MCP tools.
+description: zkMCP is a zero-knowledge authorization gateway that proves an AI agent has authority for an MCP tool action before the tool executes.
 ---
 
-# zkMCP
-
-zkMCP is a **zero-knowledge authorization gateway for Model Context Protocol tools**. It intercepts sensitive `tools/call` requests, proves that the requested action satisfies a committed private policy using Midnight and Compact, and forwards the call only after authorization succeeds.
-
-The central distinction is simple:
-
-- **Access** means an agent can reach a service.
-- **Intent** means the model wants to take an action.
-- **Authority** means that specific action is permitted under the user's rules.
-
-zkMCP is about the third.
+zkMCP sits between an **MCP client** and an **existing MCP tool server**. Sensitive `tools/call` requests are reduced into deterministic authorization facts, evaluated against a private committed policy with Midnight/Compact, and forwarded upstream only after authorization succeeds.
 
 ```mermaid
-flowchart LR
-    A[AI agent] -->|MCP tools/call| G[zkMCP gateway]
-    G --> N[Normalize authorization facts]
-    N --> M[Midnight / Compact]
-    M -->|policy satisfied| T[Upstream MCP tool]
-    M -->|policy rejected| X[Blocked before execution]
-    T --> R[Tool result + proof receipt]
+flowchart TD
+    A[AI agent / MCP client] -->|tools/call| G[zkMCP gateway]
+    G --> N[Normalize request + trusted context]
+    N --> Z[Midnight / Compact authorization]
+    Z --> D{Private policy satisfied?}
+    D -->|No| B[Block before upstream execution]
+    D -->|Yes| R[Proof verified + authorization tx finalized]
+    R --> T[Invoke upstream MCP tool]
+    T --> O[Return tool result + public receipt]
+```
+
+## The problem zkMCP solves
+
+Connecting an agent to a tool establishes **access**, not authority over every possible side effect.
+
+| Layer | Question | Example |
+| --- | --- | --- |
+| Access | Can the application reach this service? | the agent can connect to a payments MCP server |
+| Intent | What does the model want to do? | transfer £2,750 |
+| Authority | Is this exact action permitted? | amount is within the private limit and any required approval is valid |
+
+zkMCP is focused on the third question.
+
+This lets an integration express boundaries such as:
+
+```text
+documents.read
+  → only the assigned private resource
+
+email.send
+  → requires trusted human approval
+
+payments.transfer
+  → private hard maximum
+  → private approval threshold
 ```
 
 ## What is implemented
 
-The current hackathon prototype has a working end-to-end path:
+The current repository has a real end-to-end MCP + Midnight path.
 
-1. A real MCP client calls a real MCP server through zkMCP.
-2. `tools/list` is proxied from the upstream server.
-3. `tools/call` is normalized into deterministic authorization facts.
-4. A Compact contract evaluates the request against a private committed policy.
-5. Authorized actions generate and verify a Midnight proof and finalize an authorization transaction.
-6. Only then does zkMCP invoke the upstream MCP tool.
-7. Denied actions return an MCP error result and never call the upstream handler.
+<Cards>
+  <Card title="MCP gateway" href="/docs/mcp">
+    A real MCP server/client proxy intercepts `tools/call`, proxies `tools/list`, and invokes upstream tools only after authorization.
+  </Card>
+  <Card title="Compact authorization contract" href="/docs/midnight/compact-contract">
+    A private policy is bound to an immutable public commitment and evaluated through tool-specific zero-knowledge constraints.
+  </Card>
+  <Card title="Proof receipts" href="/docs/architecture/state-and-commitments">
+    Successful actions expose commitments, a nullifier, transaction ID, and block state without publishing the raw policy/request.
+  </Card>
+  <Card title="Interactive playground" href="/docs/playground">
+    Inspect the verified Phase 2 scenarios in recorded mode or generate fresh local proofs when the Midnight stack is running.
+  </Card>
+</Cards>
 
-Three authorization classes are demonstrated today:
+## Enforcement model
 
-| Tool | Private rule |
-| --- | --- |
-| `documents.read` | requested matter must match the agent's authorized resource |
-| `email.send` | external send requires trusted human approval |
-| `payments.transfer` | amount must stay below a private maximum; higher values can require approval |
+The critical ordering is:
 
-## What the verifier learns
+```text
+receive request
+    ↓
+normalize + trusted context
+    ↓
+private policy authorization
+    ↓
+proof verification + transaction finalization
+    ↓
+upstream MCP execution
+```
 
-A successful authorization exposes a compact public receipt:
+A policy denial, replay, malformed request, unavailable prover, or unavailable Midnight contract all stop before the upstream tool handler.
+
+The gateway does not “execute and then write an audit proof.” The proof-backed authorization is a prerequisite for execution.
+
+## Privacy model at a glance
+
+A successful authorization intentionally exposes a small public receipt:
 
 ```text
 policyCommitment
@@ -57,23 +94,48 @@ transactionId
 blockHeight
 contractAddress
 network
-proofDurationMs
 ```
 
-It does **not** publish the raw policy, payment amount, resource identifier, approval threshold, prompt, nonce, or arbitrary tool arguments.
+The current ledger does **not** directly publish:
 
-## What zkMCP does not prove
+```text
+policy secret
+allowed agent
+allowed resource
+private maximum
+approval threshold
+requested amount
+approval token
+nonce
+prompt
+arbitrary tool arguments
+```
 
-zkMCP does not attempt to prove that an LLM reasoned correctly, that its prompt was trustworthy, or that its output was factually correct. It proves a smaller deterministic statement surrounding the model:
+Private policy denials are also surfaced generically as `policy.AUTHORIZATION_DENIED` so the caller cannot learn which hidden constraint failed.
 
-> **This requested action satisfied the committed authorization policy.**
+## What zkMCP proves
 
-That boundary is what makes the system practical.
+zkMCP does **not** prove that the LLM reasoned correctly, that its prompt was trustworthy, or that an upstream tool implementation is correct.
 
-## Start here
+The statement is deliberately smaller:
 
-- [Quickstart](/docs/getting-started/quickstart) — run the repository locally.
-- [Authorization lifecycle](/docs/concepts/authorization-lifecycle) — understand the full request path.
-- [Playground](/docs/playground) — inspect real recorded receipts or run a live local proof.
-- [Privacy model](/docs/security/privacy-model) — see exactly which values are private and public.
-- [HTTP demo API](/api-reference) — Scalar reference for the local playground bridge.
+> **This concrete action request satisfied the committed authorization policy before the gateway invoked the protected MCP tool.**
+
+That boundary keeps the probabilistic model outside the security proof while making the side-effect decision deterministic and verifiable.
+
+## Where to go next
+
+<Cards>
+  <Card title="Quickstart" href="/docs/getting-started/quickstart">
+    Run the local Midnight stack and documentation playground.
+  </Card>
+  <Card title="Architecture" href="/docs/architecture">
+    Understand the request lifecycle, trust boundaries, commitments, failure semantics, deployment, and latency model.
+  </Card>
+  <Card title="MCP integration" href="/docs/mcp">
+    Learn how zkMCP wraps an existing MCP server and how to design normalizers and trusted context.
+  </Card>
+  <Card title="Security" href="/docs/security">
+    Review exactly what is trusted, private, public, logged, and outside the current proof guarantee.
+  </Card>
+</Cards>

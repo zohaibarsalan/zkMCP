@@ -1,0 +1,211 @@
+---
+title: Circuit constraints
+description: The exact authorization predicates proven for documents.read, email.send, and payments.transfer, including current coverage gaps.
+---
+
+The current Compact circuit proves one common policy binding plus one tool-specific rule branch.
+
+A useful way to read the contract is as a predicate:
+
+```text
+AUTHORIZED(request, privatePolicy, ledgerState)
+```
+
+that can evaluate to true only when all required assertions pass.
+
+## Common constraints
+
+Every request must satisfy:
+
+```text
+hashPolicy(privatePolicy) == ledger.policyCommitment
+requestAgent == privatePolicy.allowedAgent
+requestTool ∈ {
+  privatePolicy.documentsTool,
+  privatePolicy.emailTool,
+  privatePolicy.paymentsTool
+}
+nullifier(privatePolicy.secret, nonce) has not been used
+```
+
+The first line binds the witness to the deployment policy. The second binds the action to the allowed principal. The third rejects unknown capabilities. The final check prevents replay.
+
+## `documents.read`
+
+The document branch adds:
+
+```text
+requestResource == privatePolicy.allowedResource
+```
+
+The gateway derives `requestResource` from the tool's `matterId` argument.
+
+Example:
+
+```text
+private allowed resource: matter:thompson
+requested resource:       matter:thompson
+→ authorized
+```
+
+```text
+private allowed resource: matter:thompson
+requested resource:       matter:unrelated-client
+→ denied
+```
+
+### Currently not constrained
+
+The demo tool also carries a `documentId`, but the current circuit does not constrain that field.
+
+That means the current proof statement is:
+
+> the agent may read **a document inside the authorized matter**
+
+not:
+
+> the agent may read this exact document identifier.
+
+A stricter policy could include the document identifier, document class, path prefix, or a membership proof over an allowed document set.
+
+## `email.send`
+
+The email branch adds:
+
+```text
+approved == true
+```
+
+The boolean is derived by the gateway from trusted approval metadata; it is not read from an ordinary `approved` tool argument.
+
+### Currently not constrained
+
+The circuit does not currently constrain:
+
+```text
+recipient
+subject
+message body
+recipient domain
+external/internal classification
+```
+
+So the current proof means:
+
+> this email capability had a trusted approval signal
+
+not:
+
+> the approval was cryptographically bound to this exact recipient and body.
+
+Production approval should be scoped to an execution context so one approval cannot be reused for a materially different send.
+
+## `payments.transfer`
+
+The payment branch proves two numeric rules:
+
+```text
+requestAmount <= privatePolicy.maxPaymentAmount
+```
+
+and:
+
+```text
+requestAmount <= privatePolicy.paymentApprovalThreshold
+OR approved == true
+```
+
+This creates three regions:
+
+```text
+0 ───────── approval threshold ───────── hard maximum ───────>
+
+      allow without approval       approval required      deny
+```
+
+For the demo policy:
+
+```text
+approval threshold = £4,000
+hard maximum       = £5,000
+```
+
+so:
+
+| Request | Approval | Result |
+| ---: | --- | --- |
+| £2,750 | absent | authorized |
+| £4,500 | absent | denied |
+| £4,500 | verified | authorized |
+| £8,000 | verified | denied |
+
+Approval can satisfy the escalation rule but **cannot override the hard maximum**.
+
+### Currently not constrained
+
+The payment branch does not currently bind:
+
+```text
+recipient
+currency
+memo
+bank/account class
+matter/client context
+```
+
+Therefore a production payment normalizer/circuit needs more facts before the proof can be interpreted as authority over an exact financial transfer.
+
+## Formal shape
+
+Ignoring implementation syntax, the current predicate is approximately:
+
+```text
+policyMatches
+∧ agentMatches
+∧ knownTool
+∧ freshNullifier
+∧ (
+     documentsRead  → resourceMatches
+  )
+∧ (
+     emailSend      → approved
+  )
+∧ (
+     paymentTransfer → amount <= maxAmount
+                       ∧ (amount <= approvalThreshold ∨ approved)
+  )
+```
+
+The branch implication matters. Payment fields can be zero/default for a document request because the document branch does not depend on them.
+
+## Execution commitment coverage
+
+The execution commitment currently binds:
+
+```text
+policy commitment
+request agent
+request tool
+request resource
+request amount
+approved boolean
+nonce
+```
+
+It does not bind arbitrary forwarded JSON fields omitted from the authorization envelope.
+
+This is why normalizer design is a security-critical extension point: if a field matters to authority, it must be represented in the statement the circuit actually proves.
+
+## Adding a new policy primitive
+
+A safe extension sequence is:
+
+1. identify the application property that controls authority;
+2. normalize it into a deterministic fixed representation;
+3. add it to the private policy and/or request inputs;
+4. include it in the relevant commitment so receipts bind to it;
+5. add the Compact constraint;
+6. add success/failure/replay tests;
+7. verify the value is not accidentally leaked in logs or public state.
+
+The protocol should grow by explicit primitives, not by assuming arbitrary tool JSON is somehow covered automatically.

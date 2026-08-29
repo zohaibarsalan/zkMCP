@@ -1,28 +1,158 @@
 ---
 title: Compact contract
-description: The authorization circuit that binds requests to a committed private policy.
+description: The actual private policy, public ledger fields, commitment functions, and authorize circuit used by zkMCP.
 ---
 
-The contract lives at:
+The authorization contract lives at:
 
 ```text
 packages/midnight/contracts/authorization.compact
 ```
 
-The constructor commits the private policy. The `authorize` circuit receives normalized private request facts and a fresh nonce.
+It is intentionally small enough that the security statement is inspectable. The contract does not attempt to model arbitrary MCP JSON or LLM reasoning. It proves a fixed authorization statement over normalized facts.
 
-Conceptually it enforces:
+## Private policy struct
+
+The current policy is a Compact struct:
 
 ```text
-hash(privatePolicy) == ledger.policyCommitment
-agent is allowed
-tool is allowed
-resource rule passes
-numeric rule passes
-approval rule passes
-nullifier has not been used
+Policy {
+  secret: Bytes<32>,
+  allowedAgent: Bytes<32>,
+  documentsTool: Bytes<32>,
+  emailTool: Bytes<32>,
+  paymentsTool: Bytes<32>,
+  allowedResource: Bytes<32>,
+  maxPaymentAmount: Uint<64>,
+  paymentApprovalThreshold: Uint<64>
+}
 ```
 
-Successful execution updates public receipt fields such as the latest execution commitment and nullifier. Failed assertions abort the authorization path.
+`getPolicy()` is a witness. The policy itself is supplied from local private state rather than public ledger fields.
 
-The contract is intentionally narrow. It proves the authorization primitive first rather than attempting to encode arbitrary application logic or LLM inference in ZK.
+## Public ledger
+
+The contract exposes only the public state required to bind and replay-protect authorizations:
+
+```text
+sealed policyCommitment: Bytes<32>
+usedNullifiers: Set<Bytes<32>>
+lastExecutionCommitment: Bytes<32>
+lastNullifier: Bytes<32>
+authorizationCount: Counter
+```
+
+The policy values are not separately disclosed.
+
+## Constructor
+
+At deployment, the constructor loads the private policy, validates basic numeric invariants, hashes it, and pins the resulting commitment:
+
+```text
+assert(maxPaymentAmount > 0)
+assert(paymentApprovalThreshold <= maxPaymentAmount)
+policyCommitment = disclose(hashPolicy(policy))
+```
+
+The commitment is sealed, so the current policy is immutable for that deployment.
+
+That is a deliberate prototype constraint. Policy rotation and revocation require a lifecycle design rather than mutating the policy invisibly underneath an existing commitment.
+
+## Policy hash
+
+`hashPolicy()` uses `persistentHash` and includes a domain tag:
+
+```text
+"zkmcp:policy:v2"
+```
+
+The hash covers:
+
+```text
+policy secret
+allowed agent
+documents tool digest
+email tool digest
+payments tool digest
+allowed resource
+private payment maximum
+private approval threshold
+```
+
+The secret salts otherwise guessable policy fields.
+
+## `authorize` circuit inputs
+
+The public application calls the circuit with fixed-width request facts:
+
+```text
+requestAgent: Bytes<32>
+requestTool: Bytes<32>
+requestResource: Bytes<32>
+requestAmount: Uint<64>
+approved: Boolean
+nonce: Bytes<32>
+```
+
+Those values are not individually disclosed by the circuit.
+
+## Policy binding
+
+The first important assertion is:
+
+```text
+hashPolicy(getPolicy()) == ledger.policyCommitment
+```
+
+Without this constraint, a prover could supply a different private policy with more permissive limits and still produce a proof about that substituted policy.
+
+Binding the witness to the immutable deployment commitment closes that gap.
+
+## Tool dispatch
+
+The circuit recognizes three committed tool digests:
+
+```text
+isDocumentsRead
+isEmailSend
+isPaymentTransfer
+```
+
+and requires at least one to match.
+
+Unknown tool digests therefore fail inside Compact rather than falling through to an implicit allow branch.
+
+## Successful receipt
+
+After the tool-specific rules pass, the circuit computes:
+
+```text
+executionCommitment = hashExecution(...private execution facts...)
+nullifier = hashNullifier(policy.secret, nonce)
+```
+
+Those two values are disclosed, replay state is checked/updated, and the circuit returns:
+
+```text
+AuthorizationReceipt {
+  policyCommitment,
+  executionCommitment,
+  nullifier
+}
+```
+
+The TypeScript client combines those fields with Midnight transaction metadata to produce the application-level receipt.
+
+## Why the contract is narrow
+
+A larger circuit could encode dozens of policy primitives immediately, but that would make it harder to reason about whether the core idea works.
+
+The hackathon contract instead proves three representative classes:
+
+1. resource membership;
+2. trusted human approval;
+3. private numeric threshold + approval escalation.
+
+Those are enough to demonstrate the protocol shape while keeping the actual constraints readable.
+
+See [Circuit constraints](/docs/midnight/circuit-constraints) for the exact predicate each tool branch proves and, just as importantly, which application fields are **not** yet constrained.

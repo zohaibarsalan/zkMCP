@@ -2,7 +2,9 @@
   "title": "Midnight",
   "pages": [
     "index",
+    "runtime-stack",
     "compact-contract",
+    "circuit-constraints",
     "witnesses-and-ledger",
     "proof-lifecycle",
     "networks"

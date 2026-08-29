@@ -1,16 +1,20 @@
 {
   "title": "zkMCP",
   "pages": [
+    "---Start---",
     "index",
     "getting-started",
     "playground",
-    "concepts",
-    "mcp",
+    "---Understand---",
+    "architecture",
     "policies",
     "midnight",
     "security",
-    "reference",
+    "---Integrate---",
+    "mcp",
     "examples",
+    "---Reference---",
+    "reference",
     "development",
     "[HTTP Demo API](/api-reference)"
   ]

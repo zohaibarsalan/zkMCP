@@ -1,0 +1,13 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "index",
+    "request-lifecycle",
+    "authorization-envelope",
+    "trust-boundaries",
+    "state-and-commitments",
+    "failure-semantics",
+    "deployment-topologies",
+    "performance"
+  ]
+}

@@ -1,0 +1,169 @@
+---
+title: Receipt and metadata schema
+description: Exact MCP metadata keys and fields returned by zkMCP for authorized and blocked tools/call requests.
+---
+
+zkMCP extends ordinary MCP tool results through `_meta`. The upstream content/result remains intact; authorization evidence is added under namespaced keys.
+
+## Successful authorization
+
+The gateway uses:
+
+```text
+io.zkmcp/authorization-receipt
+```
+
+The current metadata payload is:
+
+```ts
+interface ZkMcpAuthorizationReceipt {
+  blockHeight: number;
+  contractAddress: string;
+  executionCommitment: string;
+  network: "undeployed" | "preview" | "preprod";
+  nullifier: string;
+  policyCommitment: string;
+  proofDurationMs: number;
+  transactionId: string;
+}
+```
+
+A successful MCP result is conceptually:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "upstream tool result"
+    }
+  ],
+  "_meta": {
+    "io.zkmcp/authorization-receipt": {
+      "policyCommitment": "0x...",
+      "executionCommitment": "0x...",
+      "nullifier": "0x...",
+      "transactionId": "00...",
+      "blockHeight": 197,
+      "contractAddress": "...",
+      "network": "undeployed",
+      "proofDurationMs": 24072
+    }
+  }
+}
+```
+
+If the upstream tool already returned its own `_meta`, zkMCP preserves those fields and merges the receipt into the same object.
+
+## Field semantics
+
+| Field | Meaning | Raw private inputs exposed? |
+| --- | --- | ---: |
+| `policyCommitment` | commitment pinned when the private policy was deployed | no |
+| `executionCommitment` | commitment to the private authorization execution context | no |
+| `nullifier` | public replay marker derived from private policy secret + nonce | no |
+| `transactionId` | finalized Midnight authorization transaction identifier | n/a |
+| `blockHeight` | block containing/finalizing the authorization result | n/a |
+| `contractAddress` | deployed authorization contract | n/a |
+| `network` | configured Midnight network identifier | n/a |
+| `proofDurationMs` | client-observed authorization duration around the proof-backed call | n/a |
+
+`proofDurationMs` is application metadata. It is not itself a private Compact witness or an on-ledger policy fact.
+
+## Blocked authorization
+
+Blocked calls use:
+
+```text
+io.zkmcp/authorization-error
+```
+
+The safe metadata shape is:
+
+```ts
+interface ZkMcpAuthorizationError {
+  code?: string;
+  retryable: boolean;
+  stage?: "policy" | "proof" | "replay" | "midnight" | "gateway";
+  status: number;
+}
+```
+
+A private policy denial looks approximately like:
+
+```json
+{
+  "isError": true,
+  "content": [
+    {
+      "type": "text",
+      "text": "zkMCP blocked this tool call: Action was denied by the private authorization policy"
+    }
+  ],
+  "_meta": {
+    "io.zkmcp/authorization-error": {
+      "code": "policy.AUTHORIZATION_DENIED",
+      "retryable": false,
+      "stage": "policy",
+      "status": 403
+    }
+  }
+}
+```
+
+## Why policy errors are generic
+
+Internally, the code can distinguish private conditions such as:
+
+```text
+AGENT_NOT_AUTHORIZED
+TOOL_NOT_AUTHORIZED
+AMOUNT_EXCEEDS_LIMIT
+APPROVAL_REQUIRED
+POLICY_MISMATCH
+```
+
+For a 403 policy denial, `getPrivacySafeErrorMetadata()` replaces the detailed code with:
+
+```text
+policy.AUTHORIZATION_DENIED
+```
+
+The caller therefore cannot use the metadata channel to determine which private policy constraint failed.
+
+## Trusted request metadata
+
+The current approval adapter reads:
+
+```text
+io.zkmcp/approval-token
+```
+
+from the incoming `tools/call` request `_meta`.
+
+This is **not** receipt metadata and is never copied into the result. It is consumed by the gateway's `ApprovalVerifier` to derive the private `approved` boolean.
+
+```text
+incoming request _meta
+  io.zkmcp/approval-token
+        ↓
+ApprovalVerifier
+        ↓
+private approved boolean
+        ↓
+Compact authorization
+```
+
+The fixed token used by the local demo is not a production credential format.
+
+## Consumer guidance
+
+A receipt-aware MCP host can use the metadata to:
+
+- display authorization evidence;
+- correlate a tool execution with a Midnight transaction;
+- persist the receipt alongside an agent trace;
+- distinguish policy denial from infrastructure failure;
+- require a proof-backed receipt for high-risk workflow completion.
+
+Do not interpret the receipt as proof that the upstream tool itself completed correctly. It proves the authorization boundary that preceded the upstream invocation.

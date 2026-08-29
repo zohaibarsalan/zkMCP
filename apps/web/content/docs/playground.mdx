@@ -1,19 +1,63 @@
 ---
 title: Playground
-description: Inspect the authorization boundary with recorded proof receipts or generate fresh local Midnight proofs.
+description: Inspect the real Phase 2 authorization scenarios, compare private inputs with public receipts, or generate fresh local Midnight proofs.
 full: true
+toc: false
 ---
 
-The playground is a debugging surface for the real Phase 2 authorization scenarios. It is intentionally embedded in the documentation rather than presented as a separate product dashboard.
+The playground is a **developer inspection surface**, not a separate product dashboard. It uses the same scenarios that validate the real MCP + Midnight gateway path.
 
-- **Recorded mode** works everywhere and uses receipts captured from the verified local Midnight run.
-- **Live mode** appears when the local demo API is configured by `npm run demo:ui`; allowed actions generate a fresh proof and transaction.
-- Denied actions return without an authorization receipt and never invoke the upstream MCP handler.
+## How to read it
+
+The surface is intentionally organized around the authorization boundary:
+
+1. **Private request** — the application values known to the gateway/prover.
+2. **Relevant private constraints** — only the policy rules that matter to the selected capability.
+3. **Authorization decision** — whether the circuit allowed the action before upstream execution.
+4. **Public receipt** — commitments and Midnight transaction metadata exposed after a successful authorization.
+5. **Not exposed** — values that do not appear as raw public ledger fields.
+
+<Callout title="Recorded and live modes">
+  **Recorded mode** works without Midnight running and uses receipts captured from the verified Phase 2 local integration run. **Live mode** appears when the local demo API is available and produces a fresh authorization transaction for the selected scenario.
+</Callout>
 
 <AuthorizationPlayground />
 
-## What to look for
+## Scenarios
 
-Compare the **private policy** on the left with the **public receipt** on the right. The owner/prover can see the rule values. A public verifier only needs commitments, the nullifier, transaction metadata, and proof validity.
+The current policy surface deliberately covers three different authorization classes.
 
-For a denied scenario, select **Transfer above maximum**. Even with approval present, the private hard maximum rejects the request and no receipt is committed.
+| Capability | What is being proven |
+| --- | --- |
+| `documents.read` | requested matter/resource matches the private allowed resource |
+| `email.send` | trusted human approval has been verified by the gateway |
+| `payments.transfer` | amount stays below a private hard maximum and satisfies the private approval-threshold rule |
+
+Each capability has both allow and deny examples. Denied requests return before the upstream tool handler is invoked.
+
+## Run live proving locally
+
+From the repository root:
+
+```bash
+npm install
+npm run demo:ui
+```
+
+Then open:
+
+```text
+http://localhost:4545/docs/playground
+```
+
+The command starts the local Midnight stack, deploys the authorization contract, runs the zkMCP demo API on `127.0.0.1:8787`, and starts the Fumadocs site with that API configured.
+
+Successful local authorizations currently take roughly 20–25 seconds. A private policy denial can return much sooner because the request does not complete the successful proof-backed transaction path.
+
+## What the playground does not simulate
+
+The receipt values shown in recorded mode are not invented UI fixtures. They came from the real Phase 2 Midnight transactions.
+
+However, the playground's upstream tools are still demo implementations. The purpose of the surface is to inspect the **authorization boundary**, not to pretend that a real bank transfer or external email provider is connected.
+
+For the exact request path, read [Request lifecycle](/docs/architecture/request-lifecycle). For the fields covered by each circuit branch, read [Circuit constraints](/docs/midnight/circuit-constraints).
