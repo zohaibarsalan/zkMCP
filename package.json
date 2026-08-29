@@ -15,7 +15,7 @@
     "compile:contracts": "npm run compile --workspace=@zkmcp/midnight",
     "demo:gateway": "npm run demo:gateway --workspace=@zkmcp/gateway",
     "demo:ui": "npm run setup:midnight && npm run demo:ui:start",
-    "demo:ui:start": "concurrently --kill-others --names api,web --prefix-colors magenta,cyan \"npm run serve:demo-api --workspace=@zkmcp/gateway\" \"npm run dev --workspace=@zkmcp/web\"",
+    "demo:ui:start": "concurrently --kill-others --names api,web --prefix-colors magenta,cyan \"npm run serve:demo-api --workspace=@zkmcp/gateway\" \"NEXT_PUBLIC_ZKMCP_API_URL=http://127.0.0.1:8787 npm run dev --workspace=@zkmcp/web\"",
     "dev:web": "npm run dev --workspace=@zkmcp/web",
     "fix": "ultracite fix",
     "foundation:check": "npm run check && npm run typecheck && npm test && npm run compile:contracts",
