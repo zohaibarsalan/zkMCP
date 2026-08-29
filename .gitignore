@@ -12,3 +12,8 @@ coverage/
 .vercel/
 
 .evlog/
+midnight-level-db/
+authorization-state/
+.midnight-state.json
+.midnight-wallet-state/
+.zkmcp-policy.json

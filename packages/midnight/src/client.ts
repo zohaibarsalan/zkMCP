@@ -47,6 +47,7 @@ globalThis.WebSocket = WebSocket;
 
 const PRIVATE_STATE_ID = "authorizationPrivateState";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const midnightRoot = path.resolve(__dirname, "..");
 const zkConfigPath = path.resolve(
   __dirname,
   "..",
@@ -137,7 +138,7 @@ function createProviders(
     midnightProvider: walletProvider,
     privateStateProvider: levelPrivateStateProvider({
       accountId,
-      privateStateStoreName: "authorization-state",
+      privateStateStoreName: path.join(midnightRoot, "authorization-state"),
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
     proofProvider: httpClientProofProvider(
@@ -230,20 +231,22 @@ export class MidnightAuthorizationClient {
   static async connect(
     options: MidnightAuthorizationClientOptions = {}
   ): Promise<MidnightAuthorizationClient> {
-    const resolved = resolveNetwork(
-      options.network
+    const resolved = resolveNetwork({
+      cwd: midnightRoot,
+      ...(options.network
         ? { argv: ["node", "zkmcp", "--network", options.network] }
-        : undefined
-    );
+        : {}),
+    });
     const { network, config: networkConfig } = resolved;
-    const deployment = getDeployment(network);
+    const deployment = getDeployment(network, { cwd: midnightRoot });
     if (!deployment) {
       throw midnightErrors.CONTRACT_UNAVAILABLE();
     }
 
     const privateState = loadOrCreateAuthorizationPrivateState();
-    const wallet = getOrCreateWallet(network);
+    const wallet = getOrCreateWallet(network, { cwd: midnightRoot });
     const walletCtx = await createWallet({
+      cwd: midnightRoot,
       network,
       networkConfig,
       seed: wallet.seed,
@@ -251,7 +254,7 @@ export class MidnightAuthorizationClient {
 
     try {
       await walletCtx.wallet.waitForSyncedState();
-      await persistWalletState(network, walletCtx);
+      await persistWalletState(network, walletCtx, midnightRoot);
       const providers = createProviders(walletCtx, networkConfig);
 
       let deployed: any;
@@ -302,7 +305,7 @@ export class MidnightAuthorizationClient {
 
   async close(): Promise<void> {
     await this.authorizationTail;
-    await persistWalletState(this.network, this.walletCtx);
+    await persistWalletState(this.network, this.walletCtx, midnightRoot);
     await this.walletCtx.wallet.stop();
   }
 

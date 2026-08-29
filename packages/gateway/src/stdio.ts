@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   const upstreamProcess = upstreamCommand();
   const upstreamClient = new Client(
     { name: "zkmcp-upstream-client", version: "0.1.0" },
-    { versionNegotiation: { mode: "auto" } }
+    { versionNegotiation: { mode: "legacy" } }
   );
   await upstreamClient.connect(
     new StdioClientTransport({
