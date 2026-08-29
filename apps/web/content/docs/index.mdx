@@ -5,6 +5,8 @@ description: zkMCP is a zero-knowledge authorization gateway that proves an AI a
 
 zkMCP sits between an **MCP client** and an **existing MCP tool server**. Sensitive `tools/call` requests are reduced into deterministic authorization facts, evaluated against a private committed policy with Midnight/Compact, and forwarded upstream only after authorization succeeds.
 
+Public developer documentation: **https://zkmcp.zohaibarsalan.me**. The hosted playground uses the final verified recorded receipts; fresh proving runs locally with the Midnight stack.
+
 ```mermaid
 flowchart TD
     A[AI agent / MCP client] -->|tools/call| G[zkMCP gateway]

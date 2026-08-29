@@ -1,5 +1,16 @@
 # Public docs deployment — Vercel
 
+## Current production deployment
+
+```text
+Primary domain    https://zkmcp.zohaibarsalan.me
+Vercel fallback   https://zkmcp.vercel.app
+Mode              recorded proof documentation
+Status            deployed and verified
+```
+
+The custom domain is the canonical URL for GitHub and Devpost. The Vercel fallback should redirect to the custom domain.
+
 The public deployment is intentionally **recorded-mode documentation only**. It does not run the Midnight node, proof server, wallet, or demo API on Vercel.
 
 ## Import the GitHub repository

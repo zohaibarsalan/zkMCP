@@ -6,6 +6,8 @@ zkMCP is a zero-knowledge authorization gateway for the Model Context Protocol. 
 
 Built for the **Midnight Hackathon — AI Track, August 2026**.
 
+**Live documentation:** https://zkmcp.zohaibarsalan.me
+
 ```mermaid
 flowchart TD
     A[AI agent / MCP client] -->|tools/call| G[zkMCP gateway]
@@ -160,7 +162,9 @@ npm install
 npm run dev:web
 ```
 
-Open `http://localhost:4545/docs`.
+Public docs: **https://zkmcp.zohaibarsalan.me/docs**
+
+For local development, open `http://localhost:4545/docs`.
 
 Useful routes:
 
