@@ -33,7 +33,7 @@ export interface DemoStep {
 }
 
 const CONTRACT =
-  "f8b331689540875418022de069fc96a1ecca78aec2b033329eb12a7e52b4f267";
+  "ddbe8f734862392428c7e55194ed00a9ac8d00a99cf41cfe81f27afb345793ac";
 const POLICY =
   "0x8b701e17a4e1ae066971baa4aaa90bced67eb127a606c73b532589a77e9eaa99";
 
@@ -80,17 +80,17 @@ export const recordedRun: DemoStep[] = [
     label: "Read assigned matter",
     policyCheck: "Requested matter matches the private resource scope.",
     receipt: {
-      blockHeight: 189,
+      blockHeight: 3187,
       contractAddress: CONTRACT,
       executionCommitment:
-        "0x669e722179bd54ed9dc69eb28ce7026f5a1c085f729a811b11282de103e15755",
+        "0x8e855e73bd847db6ddc2bda329cb3a98ec6954fd72908abe3c113dcbe61dd186",
       network: "undeployed",
       nullifier:
-        "0x79a1a9770c28309a6310862071b34348bb3bc022fafc371600c5c23d54574117",
+        "0xad07ac85f4fe3c1977b3b9060e9a616536e1aa1273bcac044f3aa98072b63de0",
       policyCommitment: POLICY,
-      proofDurationMs: 24_633,
+      proofDurationMs: 29_628,
       transactionId:
-        "00f1340480d49e47105a9d8df8b86cdcf182f87e04985a1b9f74b6b0419a8bfc5b",
+        "00f3ac51f4a5658ffc3432d62cdae2a15c509769afdfb56e641cca5cfda2e21298",
     },
     requestFields: [
       { label: "agent", private: true, value: "LegalAgent-01" },
@@ -167,17 +167,17 @@ export const recordedRun: DemoStep[] = [
     label: "Send after approval",
     policyCheck: "Trusted human approval satisfies the private email rule.",
     receipt: {
-      blockHeight: 193,
+      blockHeight: 3191,
       contractAddress: CONTRACT,
       executionCommitment:
-        "0x49678a40aa7e616fec9050d2ed1af916c358ad76de30d751a1014c7e1c321d34",
+        "0x374c42b97d0e20d559ae754797e00f40078ba76cb483b2f052bddcf2a9adc206",
       network: "undeployed",
       nullifier:
-        "0x034de31a00e621f5558f3cca8926f6653d5cec3b271177daed9c2f70085a61ae",
+        "0x4fae92d521b56b149878e297498e78406c145a53b51fae9ee573136443ea5b7b",
       policyCommitment: POLICY,
-      proofDurationMs: 23_815,
+      proofDurationMs: 23_802,
       transactionId:
-        "006e0107eac1625c97a3142e41d6499a12e3a4a517a55150d30fe9cbc0024a384a",
+        "00f726b838d83ac01ae5df43330dc074de8845e112a9f6d4675414d5f21462b7c4",
     },
     requestFields: [
       { label: "agent", private: true, value: "LegalAgent-01" },
@@ -210,17 +210,17 @@ export const recordedRun: DemoStep[] = [
     policyCheck:
       "£2,750 is below both the private approval threshold and hard maximum.",
     receipt: {
-      blockHeight: 197,
+      blockHeight: 3195,
       contractAddress: CONTRACT,
       executionCommitment:
-        "0x02acf64bccc9a76ea40e98fa9d41348dfa5a44d561c6289661de1ad9ce024a84",
+        "0xef1c6919b1c6158f448902da6de5a166e232222c429cec1f6835b0500e5e07d0",
       network: "undeployed",
       nullifier:
-        "0x4f5402392a8e8cfdb95a495e08a8e58eb3e7b1309422572f5573ef8ac526cacb",
+        "0x275b33c1ce1115d01d88d1e69e8ced7b48f699b8ca9c19b7d5863b61097eeb9b",
       policyCommitment: POLICY,
-      proofDurationMs: 24_072,
+      proofDurationMs: 24_046,
       transactionId:
-        "000e4f931e422c58271f9ad712e2f5c53c7188d8fa4bffd6861d88f178dce5408f",
+        "00b4a29f85034bd28b8ddb0fe728d99ac511e5c6306506be9a94ac6830c95d05c3",
     },
     requestFields: [
       { label: "agent", private: true, value: "LegalAgent-01" },
@@ -274,17 +274,17 @@ export const recordedRun: DemoStep[] = [
     policyCheck:
       "The transfer is below the hard maximum and trusted approval is valid.",
     receipt: {
-      blockHeight: 201,
+      blockHeight: 3199,
       contractAddress: CONTRACT,
       executionCommitment:
-        "0x733a6a79992b1ca58092e14821bbf326af3f168908420e4f9ca43a5891c3cb89",
+        "0x89d1d410fe2321ef9193a904cfe18addae0860baf7c811cd5c9532e29184c60e",
       network: "undeployed",
       nullifier:
-        "0x9a7796858ac8e7196fbd95554022f9d6ac9ae8de8ece3d8a19e3962cdb700dfc",
+        "0x5de1aa380349c5fc5dbc01040d9fd117d0fd4ed5e3dc2583987e14c6a9be7d90",
       policyCommitment: POLICY,
-      proofDurationMs: 23_920,
+      proofDurationMs: 23_909,
       transactionId:
-        "00dfea75d18cf1b9a2c2ce7a5330a8ce8f5ec8d597b89cb5c9479b2a595b6de447",
+        "00c3ddd1aca7df1c9fbfec1cac5e13d9c2f82afe2e9ecabe620b7fb19ca7f43192",
     },
     requestFields: [
       { label: "agent", private: true, value: "LegalAgent-01" },
@@ -326,7 +326,7 @@ export const recordedRunMetadata = {
   blockedCalls: recordedRun.filter((step) => step.status === "denied").length,
   contractAddress: CONTRACT,
   policyCommitment: POLICY,
-  recordedAt: "29 Aug 2026",
+  recordedAt: "29 Aug 2026 · final verification run",
   successfulProofs: recordedRun.filter((step) => step.status === "authorized")
     .length,
 };

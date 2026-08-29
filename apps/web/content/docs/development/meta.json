@@ -5,6 +5,7 @@
     "repository-map",
     "local-setup",
     "testing",
+    "verification",
     "troubleshooting"
   ]
 }
