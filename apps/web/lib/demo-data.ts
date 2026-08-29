@@ -11,13 +11,22 @@ export interface ProofReceipt {
   transactionId: string;
 }
 
+export interface RequestField {
+  label: string;
+  private?: boolean;
+  value: string;
+}
+
 export interface DemoStep {
   argumentsSummary: string;
   description: string;
+  group: "Documents" | "Email" | "Payments";
   hiddenFields: string[];
   id: string;
   label: string;
+  policyCheck: string;
   receipt?: ProofReceipt;
+  requestFields: RequestField[];
   resultSummary: string;
   status: DemoStatus;
   tool: "documents.read" | "email.send" | "payments.transfer";
@@ -28,10 +37,39 @@ const CONTRACT =
 const POLICY =
   "0x8b701e17a4e1ae066971baa4aaa90bced67eb127a606c73b532589a77e9eaa99";
 
+export const privatePolicy = [
+  {
+    label: "Agent",
+    note: "Only this principal can open the policy",
+    value: "LegalAgent-01",
+  },
+  {
+    label: "Matter scope",
+    note: "Document access is resource-bound",
+    value: "matter:thompson",
+  },
+  {
+    label: "External email",
+    note: "Trusted approval required",
+    value: "human approval",
+  },
+  {
+    label: "Payment ceiling",
+    note: "Hard maximum; approval cannot override",
+    value: "£5,000",
+  },
+  {
+    label: "Approval threshold",
+    note: "Higher-value transfers need approval",
+    value: "£4,000",
+  },
+] as const;
+
 export const recordedRun: DemoStep[] = [
   {
     argumentsSummary: "Thompson · settlement-offer.pdf",
-    description: "Agent requests a document from its assigned legal matter.",
+    description: "The agent requests a document inside its assigned matter.",
+    group: "Documents",
     hiddenFields: [
       "matter identifier",
       "document identifier",
@@ -40,6 +78,7 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "document-allowed",
     label: "Read assigned matter",
+    policyCheck: "Requested matter matches the private resource scope.",
     receipt: {
       blockHeight: 189,
       contractAddress: CONTRACT,
@@ -53,13 +92,20 @@ export const recordedRun: DemoStep[] = [
       transactionId:
         "00f1340480d49e47105a9d8df8b86cdcf182f87e04985a1b9f74b6b0419a8bfc5b",
     },
-    resultSummary: "Document released to the agent after proof finalization.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "matter", private: true, value: "matter:thompson" },
+      { label: "document", private: true, value: "settlement-offer.pdf" },
+    ],
+    resultSummary: "Document released only after proof finalization.",
     status: "authorized",
     tool: "documents.read",
   },
   {
     argumentsSummary: "Unrelated client · acquisition-notes.pdf",
-    description: "The same agent tries to cross the matter boundary.",
+    description:
+      "The same agent attempts to cross its private matter boundary.",
+    group: "Documents",
     hiddenFields: [
       "requested matter",
       "allowed matter",
@@ -68,14 +114,20 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "document-denied",
     label: "Read unrelated matter",
+    policyCheck: "Requested resource does not open the committed matter scope.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "matter", private: true, value: "matter:unrelated-client" },
+      { label: "document", private: true, value: "acquisition-notes.pdf" },
+    ],
     resultSummary: "Blocked before the upstream document tool executed.",
     status: "denied",
     tool: "documents.read",
   },
   {
     argumentsSummary: "outside-counsel@example.com · settlement proposal",
-    description:
-      "External email requires trusted human approval under the private policy.",
+    description: "An external send requires trusted human approval.",
+    group: "Email",
     hiddenFields: [
       "recipient",
       "subject",
@@ -85,6 +137,16 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "email-denied",
     label: "Send without approval",
+    policyCheck: "Required approval is absent from trusted MCP metadata.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      {
+        label: "recipient",
+        private: true,
+        value: "outside-counsel@example.com",
+      },
+      { label: "approval", private: true, value: "absent" },
+    ],
     resultSummary: "Policy denied the action; no email was sent.",
     status: "denied",
     tool: "email.send",
@@ -92,7 +154,8 @@ export const recordedRun: DemoStep[] = [
   {
     argumentsSummary: "outside-counsel@example.com · human approved",
     description:
-      "Approval is supplied through trusted MCP metadata, not by the agent itself.",
+      "Approval arrives through trusted metadata, not agent arguments.",
+    group: "Email",
     hiddenFields: [
       "recipient",
       "message content",
@@ -102,6 +165,7 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "email-approved",
     label: "Send after approval",
+    policyCheck: "Trusted human approval satisfies the private email rule.",
     receipt: {
       blockHeight: 193,
       contractAddress: CONTRACT,
@@ -115,14 +179,25 @@ export const recordedRun: DemoStep[] = [
       transactionId:
         "006e0107eac1625c97a3142e41d6499a12e3a4a517a55150d30fe9cbc0024a384a",
     },
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      {
+        label: "recipient",
+        private: true,
+        value: "outside-counsel@example.com",
+      },
+      { label: "approval", private: true, value: "verified" },
+    ],
     resultSummary:
-      "Email tool executed only after a valid authorization proof landed.",
+      "Email executed only after the authorization transaction landed.",
     status: "authorized",
     tool: "email.send",
   },
   {
     argumentsSummary: "£2,750 · client settlement account",
-    description: "The amount is evaluated against a private payment limit.",
+    description:
+      "A payment is checked against hidden numeric policy constraints.",
+    group: "Payments",
     hiddenFields: [
       "requested amount",
       "private maximum",
@@ -132,6 +207,8 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "payment-allowed",
     label: "Transfer below limit",
+    policyCheck:
+      "£2,750 is below both the private approval threshold and hard maximum.",
     receipt: {
       blockHeight: 197,
       contractAddress: CONTRACT,
@@ -145,15 +222,22 @@ export const recordedRun: DemoStep[] = [
       transactionId:
         "000e4f931e422c58271f9ad712e2f5c53c7188d8fa4bffd6861d88f178dce5408f",
     },
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "amount", private: true, value: "£2,750" },
+      { label: "recipient", private: true, value: "client settlement account" },
+      { label: "approval", private: true, value: "not required" },
+    ],
     resultSummary:
-      "Payment tool executed after Midnight proved the hidden numeric constraint.",
+      "Payment executed after Midnight proved the hidden numeric rule.",
     status: "authorized",
     tool: "payments.transfer",
   },
   {
     argumentsSummary: "£4,500 · approval absent",
     description:
-      "The amount is permitted only when a human approval requirement is satisfied.",
+      "The amount is under the maximum but crosses a hidden approval threshold.",
+    group: "Payments",
     hiddenFields: [
       "requested amount",
       "private approval threshold",
@@ -162,14 +246,22 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "payment-approval-denied",
     label: "Transfer needs approval",
+    policyCheck:
+      "£4,500 crosses the private approval threshold; approval is absent.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "amount", private: true, value: "£4,500" },
+      { label: "recipient", private: true, value: "client settlement account" },
+      { label: "approval", private: true, value: "absent" },
+    ],
     resultSummary: "Blocked before the payment tool executed.",
     status: "denied",
     tool: "payments.transfer",
   },
   {
     argumentsSummary: "£4,500 · human approved",
-    description:
-      "A trusted approval unlocks the higher-value action while the threshold stays private.",
+    description: "Trusted approval unlocks the higher-value action.",
+    group: "Payments",
     hiddenFields: [
       "requested amount",
       "private maximum",
@@ -179,6 +271,8 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "payment-approved",
     label: "Transfer with approval",
+    policyCheck:
+      "The transfer is below the hard maximum and trusted approval is valid.",
     receipt: {
       blockHeight: 201,
       contractAddress: CONTRACT,
@@ -192,14 +286,20 @@ export const recordedRun: DemoStep[] = [
       transactionId:
         "00dfea75d18cf1b9a2c2ce7a5330a8ce8f5ec8d597b89cb5c9479b2a595b6de447",
     },
-    resultSummary:
-      "Payment tool executed after approval and proof verification.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "amount", private: true, value: "£4,500" },
+      { label: "recipient", private: true, value: "client settlement account" },
+      { label: "approval", private: true, value: "verified" },
+    ],
+    resultSummary: "Payment executed after approval and proof verification.",
     status: "authorized",
     tool: "payments.transfer",
   },
   {
     argumentsSummary: "£8,000 · approval present",
-    description: "Human approval cannot override the private hard maximum.",
+    description: "Approval cannot override the private hard maximum.",
+    group: "Payments",
     hiddenFields: [
       "requested amount",
       "private maximum",
@@ -208,6 +308,14 @@ export const recordedRun: DemoStep[] = [
     ],
     id: "payment-limit-denied",
     label: "Transfer above maximum",
+    policyCheck:
+      "£8,000 exceeds the hidden hard maximum even though approval is present.",
+    requestFields: [
+      { label: "agent", private: true, value: "LegalAgent-01" },
+      { label: "amount", private: true, value: "£8,000" },
+      { label: "recipient", private: true, value: "client settlement account" },
+      { label: "approval", private: true, value: "verified" },
+    ],
     resultSummary: "Denied by the private policy; no payment was submitted.",
     status: "denied",
     tool: "payments.transfer",

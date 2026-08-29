@@ -5,28 +5,32 @@ import {
   Bot,
   Check,
   CheckCircle2,
-  ChevronRight,
   CircleDashed,
   EyeOff,
   FileText,
   Fingerprint,
   KeyRound,
-  LoaderCircle,
   LockKeyhole,
   Mail,
-  Network,
   Radio,
   ReceiptText,
   ShieldCheck,
-  Sparkles,
   WalletCards,
   X,
   XCircle,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   type DemoStep,
+  privatePolicy,
   recordedRun,
   recordedRunMetadata,
 } from "@/lib/demo-data";
@@ -42,7 +46,11 @@ const toolIcons = {
   "payments.transfer": WalletCards,
 } as const;
 
-function shortHex(value: string, edge = 8): string {
+const groups = ["Documents", "Email", "Payments"] as const;
+
+type BackendMode = "checking" | "live" | "recorded";
+
+function shortHex(value: string, edge = 7): string {
   if (value.length <= edge * 2 + 2) {
     return value;
   }
@@ -53,146 +61,83 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function StatusPill({ status }: { status: DemoStep["status"] }) {
-  const authorized = status === "authorized";
+function backendLabel(mode: BackendMode): string {
+  if (mode === "checking") {
+    return "Checking backend";
+  }
+  if (mode === "live") {
+    return "Live proving ready";
+  }
+  return "Recorded proof run";
+}
+
+function liveButtonLabel(running: boolean, authorized: boolean): string {
+  if (running) {
+    return "Proving with Midnight…";
+  }
+  if (authorized) {
+    return "Generate live proof";
+  }
+  return "Test live authorization";
+}
+
+function liveHint(mode: BackendMode, authorized: boolean): string {
+  if (mode === "checking") {
+    return "Checking for the local prover and gateway…";
+  }
+  if (mode === "recorded") {
+    return "Recorded mode stays interactive without local Midnight services.";
+  }
+  if (authorized) {
+    return "Successful local proofs currently take about 20–25 seconds.";
+  }
+  return "Rejected constraints return before upstream tool execution.";
+}
+
+function StatusBadge({ status }: { status: DemoStep["status"] }) {
+  const allowed = status === "authorized";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold text-[11px] uppercase tracking-[0.11em] ${
-        authorized
-          ? "border-[rgba(184,255,114,.22)] bg-[rgba(184,255,114,.08)] text-[#c8ff91]"
-          : "border-[rgba(255,117,111,.22)] bg-[rgba(255,117,111,.08)] text-[#ff938e]"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-[10px] ${
+        allowed
+          ? "border-emerald-300/20 bg-emerald-300/[0.07] text-emerald-200"
+          : "border-red-300/20 bg-red-300/[0.07] text-red-200"
       }`}
     >
-      {authorized ? (
-        <Check size={12} strokeWidth={2.5} />
-      ) : (
-        <X size={12} strokeWidth={2.5} />
-      )}
-      {authorized ? "Authorized" : "Blocked"}
+      {allowed ? <Check size={11} strokeWidth={2.5} /> : <X size={11} />}
+      {allowed ? "Authorized" : "Blocked"}
     </span>
   );
 }
 
-function FlowNode({
-  icon: Icon,
-  label,
-  detail,
-  emphasis = false,
-}: {
-  detail: string;
-  emphasis?: boolean;
-  icon: typeof Bot;
-  label: string;
-}) {
+function BrandMark() {
   return (
-    <div
-      className={`min-w-0 flex-1 rounded-xl border px-3.5 py-3 ${
-        emphasis
-          ? "border-[rgba(184,255,114,.24)] bg-[rgba(184,255,114,.07)]"
-          : "border-white/[0.08] bg-white/[0.025]"
-      }`}
-    >
-      <div className="flex items-center gap-2.5">
-        <div
-          className={`grid size-8 shrink-0 place-items-center rounded-lg border ${
-            emphasis
-              ? "border-[rgba(184,255,114,.24)] bg-[rgba(184,255,114,.09)] text-[#c8ff91]"
-              : "border-white/[0.08] bg-white/[0.035] text-white/65"
-          }`}
-        >
-          <Icon size={15} />
-        </div>
-        <div className="min-w-0">
-          <div className="truncate font-semibold text-[12px] text-white/90">
-            {label}
-          </div>
-          <div className="mt-0.5 truncate text-[10px] text-white/38">
-            {detail}
-          </div>
-        </div>
+    <div className="flex items-center gap-2.5">
+      <div className="grid size-8 place-items-center rounded-[10px] border border-white/10 bg-white/[0.045] text-white/85">
+        <KeyRound size={15} strokeWidth={1.8} />
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="font-semibold text-[15px] tracking-[-0.035em]">
+          zkMCP
+        </span>
+        <span className="hidden text-[10px] text-white/30 sm:inline">
+          authority layer for agents
+        </span>
       </div>
     </div>
   );
 }
 
-function PrivatePolicyCard() {
-  const rows = [
-    ["Agent identity", "Allowed principal"],
-    ["Matter scope", "Resource membership"],
-    ["Email approval", "Human authorization"],
-    ["Payment ceiling", "Private numeric limit"],
-    ["Approval threshold", "Private numeric rule"],
-  ];
-
-  return (
-    <section className="panel-glow overflow-hidden rounded-2xl border border-white/[0.09] bg-[rgba(14,16,14,.82)]">
-      <div className="border-white/[0.07] border-b px-4 py-3.5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.035] text-white/70">
-              <LockKeyhole size={15} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-[13px] text-white/90">
-                Private policy
-              </h2>
-              <p className="mt-0.5 text-[10px] text-white/36">
-                Committed once · values never public
-              </p>
-            </div>
-          </div>
-          <span className="rounded-md border border-white/[0.08] bg-black/20 px-2 py-1 font-mono text-[9px] text-white/34 uppercase tracking-[0.12em]">
-            witness
-          </span>
-        </div>
-      </div>
-
-      <div className="space-y-1.5 p-3">
-        {rows.map(([label, detail]) => (
-          <div
-            className="rounded-xl border border-white/[0.055] bg-white/[0.018] px-3 py-3"
-            key={label}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium text-[11px] text-white/72">
-                  {label}
-                </div>
-                <div className="mt-1 text-[9.5px] text-white/30">{detail}</div>
-              </div>
-              <span className="redacted shrink-0" />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="border-white/[0.07] border-t bg-black/20 px-4 py-3.5">
-        <div className="flex items-start gap-2.5">
-          <Fingerprint className="mt-0.5 shrink-0 text-[#c8ff91]" size={14} />
-          <div>
-            <div className="font-medium text-[10.5px] text-white/68">
-              Only the commitment is anchored
-            </div>
-            <div className="mono mt-1.5 break-all text-[9px] text-white/28 leading-relaxed">
-              {shortHex(recordedRunMetadata.policyCommitment, 10)}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ExecutionTrace({
-  selectedId,
+function ScenarioRail({
   onSelect,
+  selectedId,
 }: {
   onSelect: (id: string) => void;
   selectedId: string;
 }) {
-  const handleStepClick = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      const id = event.currentTarget.dataset.stepId;
+  const handleClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      const id = event.currentTarget.dataset.scenario;
       if (id) {
         onSelect(id);
       }
@@ -201,112 +146,393 @@ function ExecutionTrace({
   );
 
   return (
-    <section className="panel-glow overflow-hidden rounded-2xl border border-white/[0.09] bg-[rgba(14,16,14,.82)]">
-      <div className="border-white/[0.07] border-b px-4 py-3.5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.035] text-white/70">
-              <Zap size={15} />
+    <aside className="border-white/[0.07] border-b bg-white/[0.012] p-3 lg:border-r lg:border-b-0 lg:p-4">
+      <div className="flex items-center justify-between px-2 pb-3">
+        <div>
+          <div className="font-medium text-[11px] text-white/80">Scenarios</div>
+          <div className="mt-1 text-[9.5px] text-white/30">
+            Real Phase 2 allow / deny cases
+          </div>
+        </div>
+        <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1 font-mono text-[8px] text-white/32">
+          8 tests
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        {groups.map((group) => (
+          <div key={group}>
+            <div className="mb-1.5 px-2 font-medium text-[8px] text-white/25 uppercase tracking-[0.16em]">
+              {group}
             </div>
-            <div>
-              <h2 className="font-semibold text-[13px] text-white/90">
-                Agent execution trace
-              </h2>
-              <p className="mt-0.5 text-[10px] text-white/36">
-                Every sensitive tools/call hits zkMCP first
-              </p>
+            <div className="space-y-1">
+              {recordedRun
+                .filter((step) => step.group === group)
+                .map((step) => {
+                  const selected = step.id === selectedId;
+                  const allowed = step.status === "authorized";
+                  const Icon = toolIcons[step.tool];
+                  return (
+                    <button
+                      className={`group relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition ${
+                        selected
+                          ? "bg-white/[0.075] text-white"
+                          : "text-white/52 hover:bg-white/[0.035] hover:text-white/78"
+                      }`}
+                      data-scenario={step.id}
+                      key={step.id}
+                      onClick={handleClick}
+                      type="button"
+                    >
+                      {selected ? (
+                        <motion.span
+                          className="absolute inset-y-2 left-0 w-px bg-white/70"
+                          layoutId="scenario-indicator"
+                        />
+                      ) : null}
+                      <div className="grid size-7 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-black/20">
+                        <Icon size={12} strokeWidth={1.7} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-[10.5px]">
+                          {step.label}
+                        </div>
+                        <div className="mt-0.5 truncate font-mono text-[8.5px] text-white/27">
+                          {step.tool}
+                        </div>
+                      </div>
+                      <div
+                        className={`size-1.5 shrink-0 rounded-full ${
+                          allowed ? "bg-emerald-300/75" : "bg-red-300/65"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-white/36">
-            <span className="size-1.5 rounded-full bg-[#b8ff72]" />
-            Recorded proof run
+        ))}
+      </div>
+
+      <div className="mt-5 rounded-xl border border-white/[0.07] bg-black/20 p-3">
+        <div className="flex items-center gap-2 text-[9px] text-white/34">
+          <Fingerprint size={12} />
+          Committed policy
+        </div>
+        <div className="mt-2 font-mono text-[9px] text-white/56">
+          {shortHex(recordedRunMetadata.policyCommitment, 9)}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function RequestPanel({ step }: { step: DemoStep }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.075] bg-white/[0.018] p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[9px] text-white/28 uppercase tracking-[0.13em]">
+            MCP request
+          </div>
+          <div className="mt-1.5 font-mono text-[12px] text-white/76">
+            {step.tool}
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1 text-[8.5px] text-white/34">
+          <LockKeyhole size={10} />
+          private inputs
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {step.requestFields.map((field) => (
+          <div
+            className="min-w-0 rounded-xl border border-white/[0.055] bg-black/20 px-3 py-2.5"
+            key={field.label}
+          >
+            <div className="flex items-center gap-1.5 text-[8.5px] text-white/28">
+              {field.private ? <EyeOff size={10} /> : null}
+              {field.label}
+            </div>
+            <div
+              className="mt-1.5 truncate font-medium text-[10.5px] text-white/72"
+              title={field.value}
+            >
+              {field.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PathNode({
+  detail,
+  icon: Icon,
+  label,
+  state,
+}: {
+  detail: string;
+  icon: typeof Bot;
+  label: string;
+  state: "done" | "blocked" | "idle";
+}) {
+  let stateClass = "border-white/[0.07] bg-white/[0.018] text-white/50";
+  if (state === "done") {
+    stateClass =
+      "border-emerald-300/15 bg-emerald-300/[0.035] text-emerald-100/80";
+  }
+  if (state === "blocked") {
+    stateClass = "border-red-300/15 bg-red-300/[0.035] text-red-100/75";
+  }
+
+  return (
+    <div className={`min-w-0 flex-1 rounded-xl border p-3 ${stateClass}`}>
+      <div className="flex items-center gap-2.5">
+        <div className="grid size-7 shrink-0 place-items-center rounded-lg border border-current/10 bg-black/15">
+          <Icon size={12} strokeWidth={1.7} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[10px]">{label}</div>
+          <div className="mt-0.5 truncate text-[8.5px] opacity-45">
+            {detail}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
+function AuthorizationPath({ status }: { status: DemoStep["status"] }) {
+  const allowed = status === "authorized";
+  return (
+    <div className="rounded-2xl border border-white/[0.075] bg-[#080908] p-3">
+      <div className="mb-3 flex items-center justify-between px-1">
+        <div className="text-[9px] text-white/28 uppercase tracking-[0.13em]">
+          Authorization path
+        </div>
+        <div
+          className={`font-mono text-[8.5px] ${
+            allowed ? "text-emerald-200/55" : "text-red-200/55"
+          }`}
+        >
+          {allowed ? "proof → execution" : "constraint → stop"}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+        <PathNode
+          detail="proposes tools/call"
+          icon={Bot}
+          label="Agent"
+          state="done"
+        />
+        <ArrowRight className="shrink-0 text-white/15" size={13} />
+        <PathNode
+          detail="normalizes request"
+          icon={ShieldCheck}
+          label="zkMCP"
+          state="done"
+        />
+        <ArrowRight className="shrink-0 text-white/15" size={13} />
+        <PathNode
+          detail={allowed ? "proof verified" : "policy rejected"}
+          icon={Fingerprint}
+          label="Midnight"
+          state={allowed ? "done" : "blocked"}
+        />
+        <ArrowRight className="shrink-0 text-white/15" size={13} />
+        <PathNode
+          detail={allowed ? "handler invoked" : "never invoked"}
+          icon={Zap}
+          label="MCP tool"
+          state={allowed ? "done" : "idle"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PolicyPanel({ step }: { step: DemoStep }) {
+  const relevant = useCallback(
+    (label: string): boolean => {
+      if (step.tool === "documents.read") {
+        return label === "Agent" || label === "Matter scope";
+      }
+      if (step.tool === "email.send") {
+        return label === "Agent" || label === "External email";
+      }
+      return (
+        label === "Agent" ||
+        label === "Payment ceiling" ||
+        label === "Approval threshold"
+      );
+    },
+    [step.tool]
+  );
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.018]">
+      <div className="flex items-center justify-between border-white/[0.06] border-b px-4 py-3.5">
+        <div>
+          <div className="flex items-center gap-2 font-medium text-[11px] text-white/78">
+            <LockKeyhole size={13} />
+            Private policy
+          </div>
+          <div className="mt-1 text-[8.5px] text-white/28">
+            Local witness · visible to the owner, never published
+          </div>
+        </div>
+        <span className="rounded-md border border-violet-300/10 bg-violet-300/[0.035] px-2 py-1 font-mono text-[8px] text-violet-200/50">
+          PRIVATE
+        </span>
+      </div>
       <div className="p-2.5">
-        {recordedRun.map((step, index) => {
-          const Icon = toolIcons[step.tool];
-          const selected = step.id === selectedId;
-          const authorized = step.status === "authorized";
+        {privatePolicy.map((rule) => {
+          const active = relevant(rule.label);
           return (
-            <button
-              className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
-                selected
-                  ? "border-white/[0.13] bg-white/[0.055]"
-                  : "border-transparent hover:border-white/[0.065] hover:bg-white/[0.025]"
+            <div
+              className={`flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 transition ${
+                active ? "bg-white/[0.045]" : "bg-transparent"
               }`}
-              data-step-id={step.id}
-              key={step.id}
-              onClick={handleStepClick}
-              type="button"
+              key={rule.label}
             >
-              <div className="relative flex w-5 shrink-0 justify-center self-stretch">
-                {index < recordedRun.length - 1 ? (
-                  <span className="absolute top-8 left-1/2 h-[calc(100%+12px)] w-px -translate-x-1/2 bg-white/[0.06]" />
-                ) : null}
-                <span
-                  className={`relative mt-1 grid size-5 place-items-center rounded-full border ${
-                    authorized
-                      ? "border-[rgba(184,255,114,.22)] bg-[#10180c] text-[#b8ff72]"
-                      : "border-[rgba(255,117,111,.22)] bg-[#1a0f0e] text-[#ff756f]"
-                  }`}
-                >
-                  {authorized ? (
-                    <Check size={10} strokeWidth={3} />
-                  ) : (
-                    <X size={10} strokeWidth={3} />
-                  )}
-                </span>
-              </div>
-
-              <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-black/20 text-white/48">
-                <Icon size={14} />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-semibold text-[11.5px] text-white/78">
-                    {step.label}
-                  </span>
-                  {step.receipt ? (
-                    <span className="hidden rounded border border-[rgba(184,255,114,.16)] bg-[rgba(184,255,114,.055)] px-1.5 py-0.5 font-mono text-[#b8ff72]/65 text-[8px] uppercase tracking-[0.09em] sm:inline">
-                      proof
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mono mt-1 truncate text-[9.5px] text-white/28">
-                  {step.tool}
-                </div>
-                <div className="mt-1 truncate text-[9.5px] text-white/36">
-                  {step.argumentsSummary}
+              <div className="min-w-0">
+                <div className="text-[9px] text-white/32">{rule.label}</div>
+                <div className="mt-1 truncate font-medium text-[10.5px] text-white/70">
+                  {rule.value}
                 </div>
               </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <span
-                  className={`hidden font-medium text-[9px] sm:inline ${
-                    authorized ? "text-[#b8ff72]/70" : "text-[#ff756f]/70"
-                  }`}
-                >
-                  {authorized ? "EXECUTED" : "STOPPED"}
-                </span>
-                <ChevronRight
-                  className={`transition ${selected ? "text-white/60" : "text-white/18 group-hover:text-white/40"}`}
-                  size={14}
-                />
+              <div className="hidden max-w-44 text-right text-[8px] text-white/23 leading-relaxed xl:block">
+                {rule.note}
               </div>
-            </button>
+            </div>
           );
         })}
+      </div>
+      <div className="border-white/[0.06] border-t px-4 py-3">
+        <div className="flex items-start gap-2 text-[8.5px] text-white/28 leading-relaxed">
+          <Fingerprint className="mt-0.5 shrink-0" size={11} />
+          The policy is salted with a private secret. Only its commitment is
+          anchored publicly.
+        </div>
       </div>
     </section>
   );
 }
 
-type BackendMode = "checking" | "live" | "recorded";
+function ReceiptRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-h-9 items-center justify-between gap-3 border-white/[0.05] border-b px-0 py-2 last:border-b-0">
+      <span className="text-[8.5px] text-white/28">{label}</span>
+      <span
+        className="max-w-[65%] truncate font-mono text-[9px] text-white/58"
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
 
-function Inspector({
+function LedgerPanel({
+  receipt,
+  status,
+}: {
+  receipt?: DemoStep["receipt"] | null;
+  status: DemoStep["status"];
+}) {
+  const allowed = status === "authorized";
+  return (
+    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.018]">
+      <div className="flex items-center justify-between border-white/[0.06] border-b px-4 py-3.5">
+        <div>
+          <div className="flex items-center gap-2 font-medium text-[11px] text-white/78">
+            <ReceiptText size={13} />
+            Midnight ledger
+          </div>
+          <div className="mt-1 text-[8.5px] text-white/28">
+            What a public verifier can actually inspect
+          </div>
+        </div>
+        <span className="rounded-md border border-sky-300/10 bg-sky-300/[0.035] px-2 py-1 font-mono text-[8px] text-sky-200/50">
+          PUBLIC
+        </span>
+      </div>
+
+      {allowed && receipt ? (
+        <div className="px-4 py-2">
+          <ReceiptRow
+            label="policy commitment"
+            value={shortHex(receipt.policyCommitment, 9)}
+          />
+          <ReceiptRow
+            label="execution commitment"
+            value={shortHex(receipt.executionCommitment, 9)}
+          />
+          <ReceiptRow
+            label="nullifier"
+            value={shortHex(receipt.nullifier, 9)}
+          />
+          <ReceiptRow
+            label="transaction"
+            value={shortHex(receipt.transactionId, 9)}
+          />
+          <div className="grid grid-cols-2 gap-3 py-2.5">
+            <div className="rounded-lg bg-black/20 px-2.5 py-2">
+              <div className="text-[8px] text-white/24">block</div>
+              <div className="mt-1 font-mono text-[9.5px] text-white/58">
+                #{receipt.blockHeight}
+              </div>
+            </div>
+            <div className="rounded-lg bg-black/20 px-2.5 py-2">
+              <div className="text-[8px] text-white/24">proof time</div>
+              <div className="mt-1 font-mono text-[9.5px] text-white/58">
+                {formatDuration(receipt.proofDurationMs)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-[250px] flex-col items-center justify-center px-6 text-center">
+          <div className="grid size-10 place-items-center rounded-full border border-red-300/15 bg-red-300/[0.035] text-red-200/70">
+            <CircleDashed size={16} />
+          </div>
+          <div className="mt-3 font-medium text-[11px] text-white/66">
+            No receipt committed
+          </div>
+          <p className="mt-1.5 max-w-xs text-[9px] text-white/28 leading-relaxed">
+            The private circuit rejected the request. There is no authorization
+            transaction and the upstream MCP handler is not called.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PrivateBoundary({ fields }: { fields: string[] }) {
+  return (
+    <div className="flex flex-col gap-3 border-white/[0.06] border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-2 text-[9px] text-white/38">
+        <EyeOff size={12} />
+        Never exposed on the ledger
+      </div>
+      <div className="flex flex-wrap gap-1.5 sm:justify-end">
+        {fields.map((field) => (
+          <span
+            className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[8px] text-white/29"
+            key={field}
+          >
+            {field}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActionWorkspace({
   backendMode,
   liveResult,
   onRun,
@@ -321,173 +547,150 @@ function Inspector({
   running: boolean;
   step: DemoStep;
 }) {
-  const receipt = liveResult?.receipt ?? step.receipt;
-  let status: DemoStep["status"] = step.status;
+  const { status: recordedStatus } = step;
+  let status = recordedStatus;
   if (liveResult) {
     status = liveResult.isError ? "denied" : "authorized";
   }
-  const authorized = status === "authorized";
-  const isLive = Boolean(liveResult);
-  let actionLabel = authorized
-    ? "Generate a live proof"
-    : "Test live authorization";
-  if (running) {
-    actionLabel = "Authorizing with Midnight…";
-  }
-  let liveHint = "Recorded mode. Run `npm run demo:ui` to enable live proofs.";
-  if (backendMode === "checking") {
-    liveHint = "Checking for the local zkMCP demo backend…";
-  } else if (backendMode === "live") {
-    liveHint = authorized
-      ? "Allowed actions take ~20–25s on the local proof server."
-      : "Denied constraints usually return before proof generation.";
-  }
+  const receipt = liveResult?.receipt ?? step.receipt;
+  const allowed = status === "authorized";
+  const Icon = toolIcons[step.tool];
 
   return (
-    <section className="panel-glow overflow-hidden rounded-2xl border border-white/[0.09] bg-[rgba(14,16,14,.82)]">
-      <div className="border-white/[0.07] border-b px-4 py-3.5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.035] text-white/70">
-              <Network size={15} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold text-[13px] text-white/90">
-                  What Midnight exposed
-                </h2>
-                {isLive ? (
-                  <span className="rounded border border-[rgba(140,231,255,.18)] bg-[rgba(140,231,255,.06)] px-1.5 py-0.5 font-mono text-[#8ce7ff]/70 text-[8px] uppercase tracking-[0.09em]">
-                    live
+    <div className="min-w-0 p-4 sm:p-5 lg:p-6">
+      <AnimatePresence mode="wait">
+        <motion.div
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 5 }}
+          initial={{ opacity: 0, y: 5 }}
+          key={step.id}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+        >
+          <div className="flex flex-col gap-4 border-white/[0.06] border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3.5">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-white/72">
+                <Icon size={16} strokeWidth={1.7} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[9px] text-white/28">
+                    {step.tool}
                   </span>
-                ) : null}
+                  {liveResult ? (
+                    <span className="rounded border border-sky-300/12 bg-sky-300/[0.035] px-1.5 py-0.5 font-mono text-[7.5px] text-sky-200/55 uppercase tracking-[0.08em]">
+                      live result
+                    </span>
+                  ) : null}
+                </div>
+                <h2 className="mt-1.5 font-semibold text-[22px] text-white/92 tracking-[-0.035em] sm:text-[25px]">
+                  {step.label}
+                </h2>
+                <p className="mt-1.5 max-w-2xl text-[11px] text-white/36 leading-relaxed sm:text-[12px]">
+                  {step.description}
+                </p>
               </div>
-              <p className="mt-0.5 text-[10px] text-white/36">
-                Public ledger view · selected action
-              </p>
             </div>
-          </div>
-          <StatusPill status={status} />
-        </div>
-      </div>
-
-      <div className="p-4">
-        <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3.5">
-          <div className="flex items-start gap-3">
-            <div
-              className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border ${
-                authorized
-                  ? "border-[rgba(184,255,114,.23)] bg-[rgba(184,255,114,.07)] text-[#b8ff72]"
-                  : "border-[rgba(255,117,111,.23)] bg-[rgba(255,117,111,.07)] text-[#ff756f]"
-              }`}
-            >
-              {authorized ? <ShieldCheck size={15} /> : <XCircle size={15} />}
-            </div>
-            <div>
-              <div className="font-semibold text-[11.5px] text-white/82">
-                {step.label}
-              </div>
-              <p className="mt-1.5 text-[10px] text-white/40 leading-relaxed">
-                {step.description}
-              </p>
-              <p className="mt-2 text-[10px] text-white/58 leading-relaxed">
-                {step.resultSummary}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {receipt ? (
-          <div className="mt-3.5 space-y-1.5">
-            <ReceiptRow
-              label="Policy commitment"
-              value={shortHex(receipt.policyCommitment)}
-            />
-            <ReceiptRow
-              label="Execution commitment"
-              value={shortHex(receipt.executionCommitment)}
-            />
-            <ReceiptRow label="Nullifier" value={shortHex(receipt.nullifier)} />
-            <ReceiptRow
-              label="Transaction"
-              value={shortHex(receipt.transactionId)}
-            />
-            <ReceiptRow
-              label="Contract"
-              value={shortHex(receipt.contractAddress)}
-            />
-            <div className="grid grid-cols-2 gap-1.5">
-              <ReceiptRow label="Block" value={`#${receipt.blockHeight}`} />
-              <ReceiptRow
-                label="Proof time"
-                value={formatDuration(receipt.proofDurationMs)}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="mt-3.5 rounded-xl border border-[rgba(255,117,111,.12)] bg-[rgba(255,117,111,.035)] px-3.5 py-3">
-            <div className="flex items-center gap-2 font-medium text-[#ff938e]/80 text-[10px]">
-              <CircleDashed size={13} />
-              No authorization receipt committed
-            </div>
-            <p className="mt-1.5 text-[9.5px] text-white/34 leading-relaxed">
-              The private circuit rejected this request, so the upstream MCP
-              tool was never invoked.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-4 border-white/[0.06] border-t pt-3.5">
-          <div className="mb-2.5 flex items-center gap-2 font-medium text-[10px] text-white/55">
-            <EyeOff size={13} />
-            Not exposed on the ledger
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {step.hiddenFields.map((field) => (
-              <span
-                className="rounded-md border border-white/[0.06] bg-white/[0.025] px-2 py-1 text-[9px] text-white/34"
-                key={field}
-              >
-                {field}
+            <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
+              <StatusBadge status={status} />
+              <span className="font-mono text-[8px] text-white/23">
+                {allowed ? "proof-backed execution" : "pre-execution stop"}
               </span>
-            ))}
+            </div>
           </div>
-        </div>
 
-        <div className="mt-4 border-white/[0.06] border-t pt-3.5">
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[rgba(184,255,114,.22)] bg-[rgba(184,255,114,.08)] px-3 py-2.5 font-semibold text-[#c8ff91] text-[10.5px] transition hover:bg-[rgba(184,255,114,.12)] disabled:cursor-not-allowed disabled:border-white/[0.07] disabled:bg-white/[0.025] disabled:text-white/28"
-            disabled={backendMode !== "live" || running}
-            onClick={onRun}
-            type="button"
-          >
-            {running ? (
-              <LoaderCircle className="animate-spin" size={13} />
-            ) : (
-              <Radio size={13} />
-            )}
-            {actionLabel}
-          </button>
-          <div className="mt-2 text-center text-[8.5px] text-white/27 leading-relaxed">
-            {liveHint}
+          <div className="mt-5 space-y-3">
+            <RequestPanel step={step} />
+            <AuthorizationPath status={status} />
           </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            <PolicyPanel step={step} />
+            <LedgerPanel receipt={receipt} status={status} />
+          </div>
+
+          <div className="mt-4">
+            <PrivateBoundary fields={step.hiddenFields} />
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[9px] text-white/30">
+                {allowed ? (
+                  <CheckCircle2 className="text-emerald-200/55" size={12} />
+                ) : (
+                  <XCircle className="text-red-200/55" size={12} />
+                )}
+                Policy evaluation
+              </div>
+              <div className="mt-1.5 max-w-2xl text-[10px] text-white/54 leading-relaxed">
+                {step.policyCheck}
+              </div>
+              <div className="mt-1 text-[8.5px] text-white/27">
+                {step.resultSummary}
+              </div>
+            </div>
+            <div className="shrink-0 sm:w-56">
+              <button
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-3 py-2.5 font-medium text-[10px] text-white/74 transition hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={backendMode !== "live" || running}
+                onClick={onRun}
+                type="button"
+              >
+                {running ? (
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    className="inline-flex"
+                    transition={{
+                      duration: 1,
+                      ease: "linear",
+                      repeat: Number.POSITIVE_INFINITY,
+                    }}
+                  >
+                    <Fingerprint size={12} />
+                  </motion.span>
+                ) : (
+                  <Radio size={12} />
+                )}
+                {liveButtonLabel(running, allowed)}
+              </button>
+              <div className="mt-1.5 text-center text-[7.5px] text-white/22 leading-relaxed">
+                {liveHint(backendMode, allowed)}
+              </div>
+            </div>
+          </div>
+
           {runError ? (
-            <div className="mt-2 rounded-lg border border-[rgba(255,117,111,.14)] bg-[rgba(255,117,111,.045)] px-2.5 py-2 text-center text-[#ff938e]/70 text-[8.5px]">
+            <div className="mt-3 rounded-xl border border-red-300/12 bg-red-300/[0.035] px-3 py-2.5 text-[9px] text-red-100/60">
               {runError}
             </div>
           ) : null}
-        </div>
-      </div>
-    </section>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 }
 
-function ReceiptRow({ label, value }: { label: string; value: string }) {
+function ProofStats() {
   return (
-    <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-white/[0.055] bg-white/[0.018] px-3 py-2">
-      <span className="text-[9.5px] text-white/32">{label}</span>
-      <span className="mono truncate text-[9.5px] text-white/62" title={value}>
-        {value}
+    <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-white/[0.06] border-t pt-4 text-[9px] text-white/27">
+      <span>
+        <strong className="mr-1.5 font-medium text-white/58">
+          {recordedRunMetadata.successfulProofs}
+        </strong>
+        proven executions
+      </span>
+      <span>
+        <strong className="mr-1.5 font-medium text-white/58">
+          {recordedRunMetadata.blockedCalls}
+        </strong>
+        calls blocked pre-execution
+      </span>
+      <span>
+        <strong className="mr-1.5 font-medium text-white/58">1</strong>
+        committed private policy
+      </span>
+      <span className="ml-auto hidden font-mono text-white/18 md:inline">
+        local Midnight devnet · 29 Aug 2026
       </span>
     </div>
   );
@@ -501,17 +704,12 @@ export function DemoShell() {
   );
   const [runningId, setRunningId] = useState<string>();
   const [runError, setRunError] = useState<string>();
+
   const selected = useMemo(
     () => recordedRun.find((step) => step.id === selectedId) ?? recordedRun[0],
     [selectedId]
   );
   const selectedLiveResult = liveResults[selectedId];
-  let backendLabel = "Recorded chain run";
-  if (backendMode === "checking") {
-    backendLabel = "Checking live backend";
-  } else if (backendMode === "live") {
-    backendLabel = "Live backend ready";
-  }
 
   useEffect(() => {
     let active = true;
@@ -544,7 +742,7 @@ export function DemoShell() {
       setLiveResults((current) => ({ ...current, [selectedId]: result }));
     } catch {
       setRunError(
-        "Live authorization failed. Check the local Midnight stack and demo API."
+        "Live authorization failed. The recorded proof remains available; check the local Midnight stack and demo API."
       );
       setBackendMode("recorded");
     } finally {
@@ -553,211 +751,112 @@ export function DemoShell() {
   }, [selectedId]);
 
   return (
-    <main className="mx-auto w-full max-w-[1540px] px-4 pt-4 pb-16 sm:px-6 lg:px-8">
-      <div className="mesh" />
-      <div className="noise" />
-
-      <header className="flex h-14 items-center justify-between border-white/[0.07] border-b">
-        <div className="flex items-center gap-3">
-          <div className="grid size-8 place-items-center rounded-lg border border-[rgba(184,255,114,.2)] bg-[rgba(184,255,114,.07)] text-[#c8ff91]">
-            <KeyRound size={15} />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-semibold text-[15px] text-white tracking-[-0.03em]">
-              zkMCP
-            </span>
-            <span className="hidden text-[10px] text-white/28 sm:inline">
-              cryptographic authority for agents
-            </span>
-          </div>
-        </div>
+    <main className="mx-auto w-full max-w-[1320px] px-4 pt-4 pb-12 sm:px-6 lg:px-8">
+      <header className="flex h-14 items-center justify-between border-white/[0.06] border-b">
+        <BrandMark />
         <div className="flex items-center gap-2">
-          <span className="hidden rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 font-medium text-[9px] text-white/38 sm:inline-flex">
-            AI Track · Midnight Hackathon
+          <span className="hidden rounded-full border border-white/[0.07] px-2.5 py-1 text-[8.5px] text-white/28 sm:inline-flex">
+            Midnight Hackathon · AI Track
           </span>
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-[9px] ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8.5px] ${
               backendMode === "live"
-                ? "border-[rgba(184,255,114,.17)] bg-[rgba(184,255,114,.055)] text-[#c8ff91]/72"
-                : "border-white/[0.08] bg-white/[0.025] text-white/38"
+                ? "border-emerald-300/15 bg-emerald-300/[0.04] text-emerald-100/55"
+                : "border-white/[0.07] bg-white/[0.02] text-white/30"
             }`}
           >
             <span
               className={`size-1.5 rounded-full ${
                 backendMode === "live"
-                  ? "live-pulse bg-[#b8ff72]"
-                  : "bg-white/25"
+                  ? "live-pulse bg-emerald-300/80"
+                  : "bg-white/20"
               }`}
             />
-            {backendLabel}
+            {backendLabel(backendMode)}
           </span>
         </div>
       </header>
 
-      <section className="pt-10 pb-8 lg:pt-14 lg:pb-10">
-        <div className="grid gap-8 lg:grid-cols-[1.15fr_.85fr] lg:items-end">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 font-medium text-[9.5px] text-white/46 uppercase tracking-[0.13em]">
-              <Sparkles className="text-[#c8ff91]" size={12} />
-              Access is not authority
-            </div>
-            <h1 className="max-w-4xl text-balance font-semibold text-[clamp(2.35rem,5.2vw,5.6rem)] text-white leading-[0.95] tracking-[-0.065em]">
-              Agents can act.
-              <br />
-              <span className="text-white/34">
-                They cannot exceed authority.
-              </span>
-            </h1>
+      <section className="grid gap-7 pt-14 pb-9 lg:grid-cols-[1fr_430px] lg:items-end lg:pt-20 lg:pb-12">
+        <div>
+          <div className="mb-4 flex items-center gap-2 text-[9px] text-white/32 uppercase tracking-[0.17em]">
+            <ShieldCheck size={12} />
+            Zero-knowledge authorization for MCP
           </div>
-          <div className="max-w-xl lg:justify-self-end">
-            <p className="text-pretty text-[13px] text-white/46 leading-6 lg:text-[14px]">
-              zkMCP intercepts sensitive MCP tool calls and requires a Midnight
-              zero-knowledge authorization proof before the action can reach the
-              tool.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {[
-                "Private policy",
-                "Real MCP",
-                "Compact circuit",
-                "Proof receipt",
-              ].map((item) => (
-                <span
-                  className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[9.5px] text-white/36"
-                  key={item}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
+          <h1 className="max-w-4xl text-balance font-semibold text-[clamp(2.7rem,5.2vw,5.3rem)] leading-[0.94] tracking-[-0.065em]">
+            Prove the action.
+            <br />
+            <span className="text-white/34">Keep the policy private.</span>
+          </h1>
+        </div>
+        <div className="pb-1">
+          <p className="max-w-md text-pretty text-[12px] text-white/42 leading-6 sm:text-[13px]">
+            zkMCP sits between an AI agent and its MCP tools. Every sensitive
+            call must satisfy a private Compact policy on Midnight before the
+            upstream tool can execute.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-[8.5px] text-white/28">
+            <span className="rounded-md border border-white/[0.065] px-2 py-1">
+              Private policy
+            </span>
+            <span className="rounded-md border border-white/[0.065] px-2 py-1">
+              Real MCP
+            </span>
+            <span className="rounded-md border border-white/[0.065] px-2 py-1">
+              Compact
+            </span>
+            <span className="rounded-md border border-white/[0.065] px-2 py-1">
+              Proof receipt
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="panel-glow mb-3.5 rounded-2xl border border-white/[0.08] bg-[rgba(13,15,13,.72)] p-2.5">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <FlowNode detail="proposes tools/call" icon={Bot} label="AI agent" />
-          <ArrowRight className="shrink-0 text-white/17" size={14} />
-          <FlowNode
-            detail="normalizes + gates"
-            emphasis
-            icon={ShieldCheck}
-            label="zkMCP gateway"
-          />
-          <ArrowRight className="shrink-0 text-white/17" size={14} />
-          <FlowNode
-            detail="private constraint proof"
-            icon={Fingerprint}
-            label="Midnight / Compact"
-          />
-          <ArrowRight className="shrink-0 text-white/17" size={14} />
-          <FlowNode
-            detail="executes only if proven"
-            icon={Zap}
-            label="MCP tool"
-          />
-        </div>
-      </section>
-
-      <section className="panel-glow mb-3.5 rounded-2xl border border-white/[0.08] bg-[rgba(13,15,13,.72)] px-4 py-3.5">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-white/48">
-              <Bot size={15} />
+      <section className="overflow-hidden rounded-[22px] border border-white/[0.085] bg-[#0a0b0a] shadow-[0_30px_100px_rgba(0,0,0,.34)]">
+        <div className="flex flex-col gap-3 border-white/[0.07] border-b bg-white/[0.018] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-black/20 text-white/48">
+              <Bot size={14} />
             </div>
             <div className="min-w-0">
-              <div className="font-semibold text-[9px] text-white/28 uppercase tracking-[0.12em]">
-                Agent instruction
+              <div className="text-[8px] text-white/25 uppercase tracking-[0.14em]">
+                Blackwood & Co · Legal agent instruction
               </div>
-              <p className="mt-1 max-w-4xl text-[11px] text-white/62 leading-5">
-                Review the Thompson matter, send the settlement proposal to
-                outside counsel, and transfer £2,750 to the client settlement
-                account.
-              </p>
+              <div className="mt-1 truncate text-[10.5px] text-white/56">
+                Review Thompson, send the settlement proposal, and transfer
+                £2,750 to the client settlement account.
+              </div>
             </div>
           </div>
-          <span className="shrink-0 rounded-md border border-white/[0.07] bg-black/20 px-2 py-1 font-mono text-[8.5px] text-white/28 uppercase tracking-[0.09em]">
+          <div className="flex shrink-0 items-center gap-2 font-mono text-[8px] text-white/25">
+            <EyeOff size={10} />
             prompt stays off-chain
-          </span>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-[286px_minmax(0,1fr)]">
+          <ScenarioRail onSelect={handleSelect} selectedId={selectedId} />
+          <ActionWorkspace
+            backendMode={backendMode}
+            liveResult={selectedLiveResult}
+            onRun={handleLiveRun}
+            runError={runError}
+            running={runningId === selectedId}
+            step={selected}
+          />
         </div>
       </section>
 
-      <section className="grid gap-3.5 xl:grid-cols-[.78fr_1.35fr_1fr]">
-        <PrivatePolicyCard />
-        <ExecutionTrace onSelect={handleSelect} selectedId={selectedId} />
-        <Inspector
-          backendMode={backendMode}
-          liveResult={selectedLiveResult}
-          onRun={handleLiveRun}
-          runError={runError}
-          running={runningId === selectedId}
-          step={selected}
-        />
-      </section>
+      <ProofStats />
 
-      <section className="mt-3.5 grid gap-3.5 md:grid-cols-3">
-        <MetricCard
-          detail="Each one generated and verified by the Midnight proof server."
-          icon={CheckCircle2}
-          label="Proof-backed executions"
-          value={String(recordedRunMetadata.successfulProofs)}
-        />
-        <MetricCard
-          detail="Rejected calls stopped before the upstream MCP tool was invoked."
-          icon={XCircle}
-          label="Calls blocked pre-execution"
-          value={String(recordedRunMetadata.blockedCalls)}
-        />
-        <MetricCard
-          detail="One commitment binds every request to the same hidden policy."
-          icon={ReceiptText}
-          label="Committed private policy"
-          value="1"
-        />
-      </section>
-
-      <footer className="mt-10 flex flex-col justify-between gap-3 border-white/[0.07] border-t pt-5 text-[9.5px] text-white/26 sm:flex-row sm:items-center">
+      <footer className="mt-8 flex flex-col justify-between gap-2 text-[8.5px] text-white/20 sm:flex-row sm:items-center">
         <span>
-          Recorded {recordedRunMetadata.recordedAt} · local Midnight devnet ·
-          contract {shortHex(recordedRunMetadata.contractAddress, 6)}
+          Recorded receipts are from the verified Phase 2 local Midnight run.
         </span>
-        <span className="font-medium text-white/38">
-          AI agents should prove authority before execution.
+        <span className="font-medium text-white/30">
+          Access is not authority. zkMCP proves the difference.
         </span>
       </footer>
     </main>
-  );
-}
-
-function MetricCard({
-  detail,
-  icon: Icon,
-  label,
-  value,
-}: {
-  detail: string;
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="panel-glow rounded-2xl border border-white/[0.08] bg-[rgba(13,15,13,.72)] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="font-semibold text-[9px] text-white/28 uppercase tracking-[0.12em]">
-            {label}
-          </div>
-          <div className="mt-2 font-semibold text-3xl text-white/88 tracking-[-0.05em]">
-            {value}
-          </div>
-        </div>
-        <div className="grid size-8 place-items-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-white/42">
-          <Icon size={14} />
-        </div>
-      </div>
-      <p className="mt-3 max-w-sm text-[9.5px] text-white/34 leading-relaxed">
-        {detail}
-      </p>
-    </div>
   );
 }
