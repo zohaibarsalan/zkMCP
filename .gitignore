@@ -21,3 +21,6 @@ authorization-state/
 
 # Next.js generates this differently for dev/build
 apps/web/next-env.d.ts
+
+# Devpost upload assets (generated locally)
+submission/devpost-gallery/*.png
