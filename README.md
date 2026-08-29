@@ -2,163 +2,123 @@
 
 **Cryptographic authorization for AI agents.**
 
-zkMCP is a zero-knowledge authorization gateway for Model Context Protocol. It sits between an AI agent and an existing MCP server, proves that each sensitive `tools/call` satisfies a private policy with Midnight/Compact, and forwards the call only after authorization succeeds.
+zkMCP is a zero-knowledge authorization gateway for the Model Context Protocol. It sits between an AI agent and an existing MCP server, proves that a sensitive `tools/call` satisfies a private policy with Midnight/Compact, and invokes the upstream tool **only after** authorization succeeds.
+
+Built for the **Midnight Hackathon — AI Track, August 2026**.
+
+```mermaid
+flowchart TD
+    A[AI agent / MCP client] -->|tools/call| G[zkMCP gateway]
+    G --> N[Normalize action + trusted context]
+    N --> M[Midnight authorization client]
+    M --> C[Compact private policy circuit]
+    C --> D{Authorized?}
+    D -->|No| X[Return MCP denial; upstream never called]
+    D -->|Yes| P[Generate + verify proof; finalize authorization tx]
+    P --> U[Upstream MCP tool]
+    U --> R[Tool result + public receipt]
+```
+
+## What is working
+
+The repository contains a real end-to-end MCP + Midnight implementation, not a simulated authorization UI.
+
+- real MCP TypeScript SDK v2 client/server gateway
+- `tools/list` proxying from the upstream MCP server
+- pre-execution interception of `tools/call`
+- private Compact policy committed at contract deployment
+- real Midnight proof generation and verification
+- finalized authorization transactions before upstream execution
+- resource-scoped document authorization
+- trusted human-approval boundary outside agent-controlled tool arguments
+- private payment maximum and approval threshold
+- nullifier-based replay protection
+- privacy-safe MCP proof receipts and errors
+- typed errors + local evlog observability
+- Fumadocs developer documentation and interactive playground
+- Scalar OpenAPI reference for the local demo bridge
+
+### Final verification run
+
+The final local verification run on **29 August 2026** passed all eight real MCP scenarios:
 
 ```text
-AI Agent
-   │ MCP tools/call
-   ▼
-zkMCP Gateway
-   │ normalize authorization facts
-   ▼
-Midnight / Compact
-   │ private policy proof
-   ├── denied ──> MCP error; upstream tool never executes
-   │
-   └── allowed
-          ▼
-     Upstream MCP Tool
-          │
-          ▼
- tool result + public proof receipt
-```
-
-Built for the Midnight Hackathon, August 2026 — **AI Track**.
-
-## Developer documentation
-
-The web application is intentionally a **documentation site, not a marketing site**. It is built with Fumadocs and includes the architecture, quickstart, security model, exact current APIs, examples, troubleshooting, diagrams-as-code, an embedded authorization playground, and a Scalar OpenAPI reference for the local playground bridge.
-
-Run the docs only:
-
-```bash
-npm install
-npm run dev:web
-```
-
-Open:
-
-```text
-http://localhost:4545/docs
-```
-
-Useful routes:
-
-```text
-/docs                         documentation home
-/docs/getting-started         installation + quickstart
-/docs/playground              recorded/live authorization playground
-/docs/security/privacy-model  public/private data boundary
-/docs/reference               current workspace APIs
-/api-reference                Scalar HTTP demo API reference
-/openapi.json                 OpenAPI 3.1 document
-```
-
-The documentation search is backed by Fumadocs at `/api/search`.
-
-## Run the live playground
-
-Requirements:
-
-- Node.js 22+
-- Docker Desktop / Docker Compose
-- Compact compiler `0.31.1`
-
-Start Midnight, compile/deploy the authorization contract, start the real MCP demo runtime, and launch the docs with live proving enabled:
-
-```bash
-npm run demo:ui
-```
-
-Then open:
-
-```text
-http://localhost:4545/docs/playground
-```
-
-The docs also work without Midnight. In ordinary `npm run dev:web` mode, the playground uses proof receipts captured from the verified local Phase 2 run and does not attempt to contact a localhost backend.
-
-Stop Midnight when finished:
-
-```bash
-npm run stop:midnight
-```
-
-## What is implemented
-
-A real MCP client can call a real MCP server through zkMCP, with Midnight acting as the authorization boundary.
-
-The current demo covers three policy classes:
-
-| MCP tool | Private rule demonstrated |
-| --- | --- |
-| `documents.read` | requested matter must match the agent's authorized resource |
-| `email.send` | external send requires trusted human approval |
-| `payments.transfer` | amount must stay below a private maximum; higher values can require approval |
-
-The verified real MCP + Midnight run exercises:
-
-```text
-ALLOW  assigned matter document
-DENY   unrelated matter document
-DENY   external email without approval
-ALLOW  external email with approval
-ALLOW  payment below private threshold
-DENY   payment that needs approval
-ALLOW  payment with human approval
-DENY   payment above private maximum
+ALLOW  assigned matter document           ✅ proof + upstream execution
+DENY   unrelated matter document          ✅ blocked before upstream execution
+DENY   external email without approval    ✅ blocked before upstream execution
+ALLOW  external email with approval       ✅ proof + upstream execution
+ALLOW  payment below private threshold    ✅ proof + upstream execution
+DENY   payment needs approval             ✅ blocked before upstream execution
+ALLOW  payment with human approval        ✅ proof + upstream execution
+DENY   payment above private maximum      ✅ blocked before upstream execution
 
 8/8 passed
 ```
 
-For an allowed action, the sequence is:
+Final local deployment:
 
-1. Receive MCP `tools/call`.
-2. Normalize deterministic authorization facts.
-3. Resolve trusted approval metadata outside ordinary agent-controlled arguments.
-4. Submit the private authorization request to the Compact contract.
-5. Generate and verify the Midnight proof.
-6. Finalize the authorization transaction.
-7. Only then invoke the upstream MCP handler.
-8. Attach the public proof receipt to the MCP result.
+```text
+network              undeployed
+contract             ddbe8f734862392428c7e55194ed00a9ac8d00a99cf41cfe81f27afb345793ac
+policy commitment    0x8b701e17a4e1ae066971baa4aaa90bced67eb127a606c73b532589a77e9eaa99
+```
 
-Denied actions return before the upstream handler is invoked.
+Fresh successful authorization transactions from that run:
 
-## Access is not authority
+```text
+documents.read       00f3ac51f4a5658ffc3432d62cdae2a15c509769afdfb56e641cca5cfda2e21298
+email.send           00f726b838d83ac01ae5df43330dc074de8845e112a9f6d4675414d5f21462b7c4
+payments.transfer    00b4a29f85034bd28b8ddb0fe728d99ac511e5c6306506be9a94ac6830c95d05c3
+payments + approval  00c3ddd1aca7df1c9fbfec1cac5e13d9c2f82afe2e9ecabe620b7fb19ca7f43192
+```
 
-MCP gives an agent a standardized way to reach a tool. zkMCP handles the finer-grained question:
+The proof server logged real `/prove` requests followed by `proof created`, verification, and `proof ok` during the same run.
 
-> Is this agent allowed to perform **this action**, on **this resource**, with **these parameters**, under the user's private rules?
+See [Verification evidence](apps/web/content/docs/development/verification.mdx) for the full receipts, block heights, commitments, and reproduction commands.
 
-zkMCP separates:
+## The problem
 
-- **access** — the application can reach a service
-- **intent** — the model wants to perform an action
-- **authority** — the individual action satisfies the user's policy
+MCP gives an application a standardized way to reach tools. That does not automatically answer whether an autonomous agent has authority for each individual side effect.
 
-The third is what zkMCP proves.
+```text
+Access     Can the application reach the service?
+Intent     What action does the model want to take?
+Authority  Is this exact action permitted under the user's rules?
+```
+
+zkMCP focuses on **authority**.
+
+The current private policy demonstrates three capability classes:
+
+| MCP tool | Private authorization rule |
+| --- | --- |
+| `documents.read` | requested matter/resource must match the allowed private resource |
+| `email.send` | trusted human approval must be verified outside ordinary tool arguments |
+| `payments.transfer` | amount must remain below a private hard maximum; higher allowed values can require approval |
 
 ## What zkMCP proves
 
-zkMCP does **not** attempt to prove arbitrary LLM reasoning or inference.
+zkMCP does **not** try to prove arbitrary LLM inference or that a model “reasoned correctly.” The model remains probabilistic.
 
-For an accepted authorization transaction, the current Compact contract proves the deterministic authorization envelope conceptually contains:
+The Compact circuit proves a smaller deterministic statement around the requested action:
 
 ```text
-private policy hashes to committed policy
-AND agent constraint passes
-AND tool constraint passes
+private policy hashes to the policy committed at deployment
+AND configured agent is authorized
+AND requested tool is authorized
 AND resource constraint passes when applicable
-AND numeric constraints pass when applicable
-AND approval requirement passes when applicable
+AND private numeric constraints pass when applicable
+AND trusted approval requirement passes when applicable
 AND authorization nonce has not been replayed
 ```
 
-The model can remain probabilistic. The authority boundary does not.
+For a protected tool, the gateway follows one invariant:
 
-## Public vs private
+> **No successful authorization, no upstream execution.**
 
-A successful authorization returns public receipt material such as:
+## Public receipt, private policy
+
+A successful action returns public evidence such as:
 
 ```text
 policyCommitment
@@ -171,118 +131,132 @@ network
 proofDurationMs
 ```
 
-The system does not deliberately publish or log the raw:
+The application does not deliberately publish or log raw values such as:
 
 ```text
 policy secret
-agent/tool policy identifiers
-resource / matter identifier
-payment amount
+allowed agent / resource
 private maximum
 approval threshold
-approval context / token
+requested payment amount
+approval token
 nonce
 prompt
 arbitrary tool arguments
 ```
 
-Private policy failures are surfaced externally as the generic `policy.AUTHORIZATION_DENIED`, so the error channel does not reveal whether an agent, tool, resource, numeric, or approval rule caused the rejection.
+Private policy failures are surfaced externally as the generic `policy.AUTHORIZATION_DENIED`, so callers cannot probe which hidden constraint failed through the error channel.
 
-See the full [privacy model](apps/web/content/docs/security/privacy-model.mdx) and [threat model](apps/web/content/docs/security/threat-model.mdx).
+## Developer documentation
 
-## Current APIs
+The web app is intentionally a **documentation portal, not a marketing site**.
 
-The codebase is separated into three workspace packages:
+It includes architecture, the exact request lifecycle, authorization envelope, trust boundaries, commitments and nullifiers, Compact circuit constraints, MCP integration, policy primitives, Midnight internals, security, examples, an interactive playground, and a Scalar reference for the local debug API.
+
+Run the documentation only:
+
+```bash
+npm install
+npm run dev:web
+```
+
+Open `http://localhost:4545/docs`.
+
+Useful routes:
 
 ```text
-@zkmcp/core      typed errors + privacy-safe local observability
-@zkmcp/midnight  Midnight/Compact authorization client
-@zkmcp/gateway   MCP proxy + normalization + trusted approval boundary
+/docs                                  Introduction
+/docs/architecture                     System architecture
+/docs/architecture/request-lifecycle   Exact pre-execution path
+/docs/mcp                              MCP integration
+/docs/mcp/add-a-protected-tool         Extension guide
+/docs/midnight/circuit-constraints     Exact proof predicates
+/docs/security/privacy-model           Public/private boundary
+/docs/playground                       Recorded/live proof inspector
+/docs/development/verification         Final proof evidence
+/api-reference                         Scalar demo API reference
 ```
 
-These packages are **not published to npm yet**. Documentation uses their workspace package names because those are the actual current code boundaries.
+## Run the real local stack
 
-The gateway API today is deliberately lower-level than a future SDK:
+Requirements:
 
-```ts
-const authorizer = await createMidnightAuthorizationClient();
+- Node.js 22+
+- Docker Desktop / Docker Compose
+- Compact compiler `0.31.1`
 
-const gateway = new ZkMcpGateway({
-  agentId: "LegalAgent-01",
-  approvalVerifier,
-  authorizer,
-  upstream,
-});
+Install dependencies and start the local Midnight node, indexer, proof server, compile the contract, and deploy it:
 
-const server = gateway.createServer();
+```bash
+npm install
+npm run setup:midnight
 ```
 
-There is no fake `definePolicy()` or one-line `wrapServer()` API in the docs. The reference documents the implementation that exists now.
+Run the full MCP + Midnight verification suite:
 
-## MCP metadata
-
-Successful authorizations are attached under:
-
-```text
-io.zkmcp/authorization-receipt
+```bash
+npm run demo:gateway
 ```
 
-Privacy-safe authorization failures use:
+Run the documentation playground with fresh local proving enabled:
 
-```text
-io.zkmcp/authorization-error
+```bash
+npm run demo:ui:start
 ```
 
-Trusted demo approval is carried separately from agent arguments under:
+Then open `http://localhost:4545/docs/playground`.
 
-```text
-io.zkmcp/approval-token
+Or use the one-command setup + UI path:
+
+```bash
+npm run demo:ui
 ```
 
-An agent cannot authorize itself simply by adding an `approved: true` tool argument.
+Stop the Midnight stack afterward:
 
-## Repository
+```bash
+npm run stop:midnight
+```
+
+The public/ordinary docs build works without Midnight. In recorded mode, the playground uses receipts from the final verified run and does not contact a localhost backend.
+
+## Repository structure
 
 ```text
 zkMCP/
 ├── apps/
-│   └── web/
-│       ├── app/                    Fumadocs routes, search, Scalar/OpenAPI
-│       ├── components/             MDX components + authorization playground
-│       ├── content/docs/           developer documentation
-│       └── lib/
-│
-├── docs/                            implementation-phase engineering notes
-│   ├── engineering-foundation.md
-│   ├── phase1-proof-model.md
-│   ├── phase2-mcp-gateway.md
-│   └── phase3-demo-ui.md
+│   └── web/                     Fumadocs portal + playground + Scalar
 │
 ├── packages/
-│   ├── core/
-│   │   └── src/                    typed errors + evlog helpers
-│   │
-│   ├── midnight/
-│   │   ├── contracts/
-│   │   │   └── authorization.compact
-│   │   └── src/                    client, wallet, network, witnesses
-│   │
-│   └── gateway/
-│       └── src/                    MCP gateway, normalizer, approval, demos
+│   ├── core/                    typed errors + privacy-safe evlog helpers
+│   ├── gateway/                 MCP proxy, normalization, trusted approval
+│   └── midnight/                Compact contract, wallet/providers, proof client
 │
+├── docs/                        engineering/build-phase notes
 ├── biome.jsonc
-└── package.json
+├── package.json
+└── package-lock.json
 ```
 
-## Testing
+The browser does not bundle the Midnight wallet/proving runtime. Live playground requests go through the local demo API process; recorded mode is self-contained.
 
-Run the repository-wide quality gate:
+## MCP metadata
+
+```text
+io.zkmcp/authorization-receipt   successful authorization evidence
+io.zkmcp/authorization-error     privacy-safe authorization failure
+io.zkmcp/approval-token          trusted demo approval context
+```
+
+The agent cannot grant itself authority merely by adding `approved: true` to normal tool arguments.
+
+## Quality gates
 
 ```bash
 npm run foundation:check
 ```
 
-It runs:
+runs:
 
 ```text
 Ultracite / Biome
@@ -292,42 +266,14 @@ Ultracite / Biome
 → Compact compilation
 ```
 
-Run the direct Midnight authorization suite:
+Additional real-infrastructure checks:
 
 ```bash
 npm run test:midnight
-```
-
-Run the real stdio MCP + Midnight integration demo:
-
-```bash
 npm run demo:gateway
 ```
 
-## Engineering foundation
-
-The repository uses:
-
-- **Ultracite + Biome** for formatting and linting
-- strict TypeScript checking
-- **evlog** for local structured wide events
-- typed error catalogs in `@zkmcp/core`
-- privacy-safe error/log metadata
-- a single root npm workspace and lockfile
-
-No remote observability drain is configured. Local evlog files are gitignored.
-
-## Documentation stack
-
-- **Fumadocs** — docs shell, navigation, MDX content, TOC, and search
-- **Beautiful Mermaid** — architecture and flow diagrams from Mermaid source
-- **Scalar** — OpenAPI reference for the local HTTP playground bridge
-- Next.js 16 / React 19
-- Tailwind CSS 4
-
-The Scalar API describes the local `/health` and `/run` playground bridge. It is explicitly documented as a demo/debug API around the real MCP + Midnight runtime, **not** as the zkMCP protocol itself.
-
-## Core stack
+## Stack
 
 - Midnight Network
 - Compact `0.31.1` / language `0.23`
@@ -335,22 +281,34 @@ The Scalar API describes the local `/health` and `/run` playground bridge. It is
 - Midnight Proof Server `8.1.0`
 - Model Context Protocol TypeScript SDK v2
 - TypeScript / Node.js
-- Zod
+- Next.js 16 / React 19
+- Fumadocs
+- Beautiful Mermaid
+- Scalar
+- Tailwind CSS 4
+- Ultracite / Biome
+- evlog
 - Docker
 
-## Important current limitations
+## Current limitations
 
-This is a working hackathon infrastructure prototype, not a finished production authorization platform.
+zkMCP is a working hackathon infrastructure prototype, not a finished production authorization platform.
 
-- One immutable private policy is committed per current contract deployment.
-- The approval verifier uses a fixed local token for the demo; production should use signed, scoped, expiring approval capabilities.
-- The gateway currently protects MCP tools, not MCP resources/prompts.
-- Tool normalization is explicit for the three demo tool classes rather than driven by a general policy DSL.
-- Workspace packages are not published to npm.
-- The fully validated chain deployment is the local Midnight `undeployed` devnet.
-- Proof generation is synchronous and currently adds significant latency.
-- Policy rotation/revocation, delegated identities, multi-party approvals, concurrency optimization, and production secret storage remain future work.
+- one immutable private policy per current contract deployment
+- fixed local approval token in the demo instead of signed/scoped/expiring approvals
+- explicit normalization for three demo capability classes instead of a general policy DSL
+- MCP tools are protected; resources/prompts are not yet intercepted
+- workspace packages are not published to npm
+- the fully verified deployment is the local Midnight `undeployed` environment
+- successful local proof-backed authorizations currently take roughly 20–30 seconds
+- policy rotation/revocation, delegated identities, production secret storage, multi-party approval, and optimized concurrent proving remain future work
 
-For the complete developer-facing documentation, run `npm run dev:web` and open `/docs`.
+The docs deliberately call out fields the current proof **does not** constrain so a receipt is not interpreted more broadly than the circuit statement.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+---
 
 **AI agents should not just claim that they followed the rules. They should be able to prove it.**

@@ -1,6 +1,6 @@
 ---
 title: Playground
-description: Inspect the real Phase 2 authorization scenarios, compare private inputs with public receipts, or generate fresh local Midnight proofs.
+description: Inspect the final verified authorization scenarios, compare private inputs with public receipts, or generate fresh local Midnight proofs.
 full: true
 toc: false
 ---
@@ -18,7 +18,7 @@ The surface is intentionally organized around the authorization boundary:
 5. **Not exposed** — values that do not appear as raw public ledger fields.
 
 <Callout title="Recorded and live modes">
-  **Recorded mode** works without Midnight running and uses receipts captured from the verified Phase 2 local integration run. **Live mode** appears when the local demo API is available and produces a fresh authorization transaction for the selected scenario.
+  **Recorded mode** works without Midnight running and uses receipts captured from the final 29 August local verification run. **Live mode** appears when the local demo API is available and produces a fresh authorization transaction for the selected scenario.
 </Callout>
 
 <AuthorizationPlayground />
@@ -56,7 +56,7 @@ Successful local authorizations currently take roughly 20–25 seconds. A privat
 
 ## What the playground does not simulate
 
-The receipt values shown in recorded mode are not invented UI fixtures. They came from the real Phase 2 Midnight transactions.
+The receipt values shown in recorded mode are not invented UI fixtures. They came from the final verified MCP + Midnight transactions documented under [Verification evidence](/docs/development/verification).
 
 However, the playground's upstream tools are still demo implementations. The purpose of the surface is to inspect the **authorization boundary**, not to pretend that a real bank transfer or external email provider is connected.
 
