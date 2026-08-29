@@ -43,7 +43,9 @@ The third is what zkMCP proves.
 
 ## Current status
 
-**Phase 2 is complete.** A real MCP client can now call a real MCP server through zkMCP, with Midnight acting as the authorization boundary.
+**Phase 3 is complete.** zkMCP now has a judge-facing Next.js demo on top of the working MCP + Midnight authorization path. It supports an instant recorded proof trace plus live reruns that generate fresh Midnight receipts in the browser.
+
+The backend remains real: a live action travels through a real MCP client, the zkMCP gateway, the Compact authorization circuit, Midnight proof generation/verification, and only then the upstream MCP tool.
 
 The working demo covers three policy classes:
 
@@ -119,7 +121,15 @@ Start the local Midnight node, indexer, proof server, compile the contract, and 
 npm run setup:midnight
 ```
 
-Run the full real MCP + Midnight demo:
+Run the full judge-facing UI, including Midnight setup and the live demo backend:
+
+```bash
+npm run demo:ui
+```
+
+Then open `http://localhost:4545`. The page also works in recorded mode without the live prover, using receipts captured from real Phase 2 transactions.
+
+Run the terminal-only MCP + Midnight suite instead:
 
 ```bash
 npm run demo:gateway
@@ -141,10 +151,17 @@ npm run stop:midnight
 
 ```text
 zkMCP/
+├── apps/
+│   └── web/
+│       ├── app/
+│       ├── components/
+│       └── lib/
+│
 ├── docs/
 │   ├── engineering-foundation.md
 │   ├── phase1-proof-model.md
-│   └── phase2-mcp-gateway.md
+│   ├── phase2-mcp-gateway.md
+│   └── phase3-demo-ui.md
 │
 ├── packages/
 │   ├── core/
@@ -167,7 +184,9 @@ zkMCP/
 │           ├── approval.ts
 │           ├── stdio.ts
 │           ├── demo-tools.ts
-│           └── demo-client.ts
+│           ├── demo-client.ts
+│           ├── demo-runtime.ts
+│           └── demo-api.ts
 │
 ├── biome.jsonc
 └── package.json
@@ -215,6 +234,9 @@ No remote observability drain is configured. Local evlog files are gitignored.
 - Ultracite / Biome
 - evlog
 - Docker
+- Next.js 16 / React 19
+- Tailwind CSS 4
+- lucide-react
 
 ## Important current limitations
 
@@ -228,10 +250,12 @@ This is a working hackathon infrastructure prototype, not a finished production 
 - Proof generation is synchronous and currently adds significant latency.
 - Policy rotation, revocation, delegated identities, multi-party approvals, concurrency optimization, and production secret storage are future work.
 
-See [`docs/phase1-proof-model.md`](docs/phase1-proof-model.md) for the ZK model and [`docs/phase2-mcp-gateway.md`](docs/phase2-mcp-gateway.md) for the MCP architecture and validation evidence.
+See [`docs/phase1-proof-model.md`](docs/phase1-proof-model.md) for the ZK model, [`docs/phase2-mcp-gateway.md`](docs/phase2-mcp-gateway.md) for the MCP architecture, and [`docs/phase3-demo-ui.md`](docs/phase3-demo-ui.md) for the live/recorded judge experience.
 
 ## Next
 
-Phase 3 is the hackathon demo/product layer: build the polished policy studio, agent execution trace, approval interaction, and **What Midnight Saw** privacy inspector on top of the now-working gateway.
+The core hackathon build is now complete. The next work is submission polish: capture gallery assets, record the ≤2 minute demo video, deploy or package the judge experience cleanly, and tighten the Devpost story around the exact implementation that shipped.
+
+Beyond the hackathon, the highest-value product work is policy rotation/revocation, signed human approvals, a reusable policy DSL, delegated agent capabilities, and asynchronous/proof-caching strategies for lower latency.
 
 **AI agents should not just claim that they followed the rules. They should be able to prove it.**
