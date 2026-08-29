@@ -6,7 +6,8 @@
       "!!**/contracts/managed",
       "!!**/.midnight-wallet-state",
       "!!**/midnight-level-db",
-      "!!**/.evlog"
+      "!!**/.evlog",
+      "!!**/.source"
     ]
   },
   "overrides": [

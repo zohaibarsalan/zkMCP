@@ -1,0 +1,24 @@
+---
+title: tools/call
+description: Sensitive execution is intercepted before the upstream MCP handler runs.
+---
+
+`tools/call` is the enforcement point.
+
+The current handler executes in this order:
+
+```text
+normalize request
+→ Midnight authorize
+→ if denied: return MCP isError
+→ if allowed: call upstream tool
+→ attach authorization receipt
+```
+
+The original tool arguments are kept for forwarding. A separate normalized authorization object contains only the fields needed by the Compact contract.
+
+For example, `payments.transfer` extracts the numeric `amount`, verifies approval metadata, converts the amount to `bigint`, and supplies those authorization facts to Midnight. The upstream payment tool still receives its original arguments after authorization succeeds.
+
+## Error behavior
+
+Normalization failures become `gateway.INVALID_MCP_REQUEST`. Private policy failures become `policy.AUTHORIZATION_DENIED`. Upstream execution failures after authorization become `gateway.UPSTREAM_TOOL_FAILED`.

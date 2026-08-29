@@ -1,0 +1,16 @@
+---
+title: Trusted metadata
+description: Keep privileged authorization context outside ordinary model-controlled tool arguments.
+---
+
+Some authorization facts should not be writable by the model. Human approval is the current example.
+
+The gateway reads the demo approval token from MCP request metadata under:
+
+```text
+io.zkmcp/approval-token
+```
+
+The token is verified before the normalized authorization request is created. Tool arguments are forwarded unchanged and do not gain authority merely because they contain a field named `approved`.
+
+This same pattern can later carry signed approvals, delegated identities, organization context, or other trusted claims.

@@ -1,0 +1,37 @@
+---
+title: Proof receipts
+description: Public evidence returned after a successful zkMCP authorization.
+---
+
+After a successful authorization, zkMCP attaches the receipt to the MCP result under:
+
+```text
+io.zkmcp/authorization-receipt
+```
+
+The receipt type is currently:
+
+```ts
+interface MidnightAuthorizationReceipt {
+  blockHeight: number;
+  contractAddress: string;
+  executionCommitment: string;
+  network: "undeployed" | "preview" | "preprod";
+  nullifier: string;
+  policyCommitment: string;
+  proofDurationMs: number;
+  transactionId: string;
+}
+```
+
+The receipt is deliberately small. It provides evidence that authorization occurred without carrying the private request or policy.
+
+## Commitments
+
+- `policyCommitment` binds the authorization to the policy committed at deployment.
+- `executionCommitment` binds the public receipt to the private execution context.
+- `nullifier` prevents replay of the same authorization nonce.
+
+## Denied requests
+
+Denied requests do not receive an authorization receipt. They return privacy-safe error metadata under `io.zkmcp/authorization-error` instead.

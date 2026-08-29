@@ -1,0 +1,46 @@
+---
+title: Threat model
+description: What the current gateway treats as trusted, untrusted, protected, and out of scope.
+---
+
+## Untrusted or partially trusted
+
+### AI agent
+
+The agent may propose arbitrary MCP tool calls and arguments. It is not allowed to mint privileged approval simply by adding an `approved` field.
+
+### Tool request arguments
+
+Arguments are treated as untrusted action proposals. The normalizer validates the fields needed for authorization before proving.
+
+## Trusted in the current prototype
+
+### Gateway configuration
+
+The configured `agentId`, upstream MCP connection, and approval verifier are trusted deployment inputs.
+
+### Private policy storage
+
+The local witness file and wallet/private-state storage are trusted to remain confidential and untampered. Production secret storage is not implemented yet.
+
+### Midnight proving and ledger stack
+
+The proof/verification and ledger semantics are delegated to Midnight. zkMCP consumes finalized transaction and indexed contract state through Midnight.js.
+
+### Upstream MCP tool implementation
+
+zkMCP controls whether the handler is invoked. It does not prove that the handler itself performs the advertised action correctly.
+
+## Protected properties
+
+The prototype is designed so that:
+
+- an unauthorized request is stopped before the upstream handler
+- approval cannot be created by ordinary tool arguments
+- a different private policy cannot be substituted without breaking the committed-policy equality check
+- replayed authorization nonces fail through the public nullifier set
+- logs and external errors do not intentionally expose private policy values
+
+## Important gaps
+
+The hackathon prototype does not yet provide policy rotation/revocation, signed delegated identities, production secret management, remote prover hardening, multi-party approval, or authorization for MCP resources/prompts.

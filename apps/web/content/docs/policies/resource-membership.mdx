@@ -1,0 +1,16 @@
+---
+title: Resource membership
+description: Restrict an agent to a private resource scope such as an assigned legal matter.
+---
+
+`documents.read` maps the MCP argument `matterId` into the private authorization request as `resource`.
+
+The Compact policy contains a private allowed resource. Authorization succeeds only when the requested resource digest matches the committed policy.
+
+```text
+request.resource == policy.allowedResource
+```
+
+The raw resource identifier is not stored in public ledger state.
+
+The legal demo uses this to allow `matter:thompson` while blocking an unrelated client matter.

@@ -1,0 +1,15 @@
+---
+title: Finance agent recipe
+description: Apply hidden spending limits and approval thresholds to payment tools.
+---
+
+The finance case maps directly to the implemented `payments.transfer` primitive.
+
+```text
+private maximum          5,000
+private approval above   4,000
+```
+
+A £2,750 transfer can be proven valid without publishing either threshold. A £4,500 transfer requires trusted approval. A value above the hard maximum remains blocked even when approval exists.
+
+This demonstrates why privacy matters for policy itself. Internal spending limits and escalation thresholds can be sensitive even when an organization wants public or third-party-verifiable evidence that the rules were followed.

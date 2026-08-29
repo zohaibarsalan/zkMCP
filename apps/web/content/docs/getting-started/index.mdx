@@ -1,0 +1,31 @@
+---
+title: Overview
+description: Run zkMCP locally and understand the pieces involved in a protected MCP call.
+---
+
+zkMCP is currently a monorepo prototype rather than a published npm package. The fastest way to evaluate it is to run the repository directly.
+
+## Prerequisites
+
+- Node.js 22+
+- Docker Desktop with Docker Compose
+- Compact compiler `0.31.1`
+- macOS or Linux
+
+## Repository packages
+
+```text
+@zkmcp/core      typed errors and privacy-safe observability
+@zkmcp/midnight  Midnight wallet, Compact contract connection, proving
+@zkmcp/gateway   MCP proxy and authorization boundary
+@zkmcp/web       Fumadocs documentation and playground
+```
+
+The packages are workspace-local today. They are intentionally documented by their future package boundaries, but they are **not published to npm yet**.
+
+## Recommended path
+
+1. [Install the repository](/docs/getting-started/installation).
+2. [Run the local stack](/docs/getting-started/quickstart).
+3. Read [Your first protected tool](/docs/getting-started/first-protected-tool).
+4. Open the [Playground](/docs/playground).

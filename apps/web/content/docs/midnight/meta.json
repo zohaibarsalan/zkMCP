@@ -1,0 +1,10 @@
+{
+  "title": "Midnight",
+  "pages": [
+    "index",
+    "compact-contract",
+    "witnesses-and-ledger",
+    "proof-lifecycle",
+    "networks"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Reference",
+  "pages": [
+    "index",
+    "gateway",
+    "midnight-client",
+    "errors",
+    "configuration",
+    "maturity",
+    "[HTTP Demo API](/api-reference)"
+  ]
+}

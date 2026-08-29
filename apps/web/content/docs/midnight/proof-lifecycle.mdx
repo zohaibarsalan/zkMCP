@@ -1,0 +1,29 @@
+---
+title: Proof lifecycle
+description: From authorization request to finalized receipt.
+---
+
+`createMidnightAuthorizationClient()` connects to the current deployment and exposes an `authorize()` method.
+
+```ts
+const client = await createMidnightAuthorizationClient();
+
+const receipt = await client.authorize({
+  agent: "LegalAgent-01",
+  tool: "payments.transfer",
+  amount: 2750n,
+  approved: false,
+});
+
+await client.close();
+```
+
+For each authorization, the client:
+
+1. creates a fresh 32-byte nonce
+2. invokes the Compact `authorize` circuit
+3. waits for proof generation and transaction finalization
+4. queries the resulting public ledger state
+5. returns a `MidnightAuthorizationReceipt`
+
+The current implementation serializes authorization calls through one client instance because wallet/proving state is not yet optimized for concurrent gateway traffic.

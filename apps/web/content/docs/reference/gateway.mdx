@@ -1,0 +1,87 @@
+---
+title: Gateway API
+description: ZkMcpGateway, upstream adapters, receipt metadata, and trusted approval interfaces.
+---
+
+## `ZkMcpGateway`
+
+```ts
+new ZkMcpGateway(options: ZkMcpGatewayOptions)
+```
+
+### Options
+
+```ts
+interface ZkMcpGatewayOptions {
+  agentId: string;
+  approvalVerifier: ApprovalVerifier;
+  authorizer: GatewayAuthorizationBackend;
+  upstream: GatewayUpstreamClient;
+}
+```
+
+### Methods
+
+```ts
+createServer(): McpServer
+close(): Promise<void>
+```
+
+`createServer()` returns the MCP server that your client/host connects to. `close()` closes the authorization backend and upstream client when they expose close handlers.
+
+## `GatewayAuthorizationBackend`
+
+```ts
+interface GatewayAuthorizationBackend {
+  authorize: (
+    request: MidnightAuthorizationRequest
+  ) => Promise<MidnightAuthorizationReceipt>;
+  close?: () => Promise<void>;
+}
+```
+
+The default implementation used by the repository is `MidnightAuthorizationClient`.
+
+## `GatewayUpstreamClient`
+
+```ts
+interface GatewayUpstreamClient {
+  listTools: (input?: { cursor?: string }) => Promise<ListToolsResult>;
+  callTool: (input: {
+    name: string;
+    arguments?: Record<string, unknown>;
+  }) => Promise<CallToolResult>;
+  close?: () => Promise<void>;
+}
+```
+
+Any MCP client that can satisfy this interface can sit behind zkMCP.
+
+## Result metadata
+
+```ts
+const ZKMCP_RECEIPT_META_KEY = "io.zkmcp/authorization-receipt";
+const ZKMCP_ERROR_META_KEY = "io.zkmcp/authorization-error";
+```
+
+Successful upstream results are preserved and receive the receipt under `ZKMCP_RECEIPT_META_KEY`. Denials return `isError: true` with privacy-safe metadata under `ZKMCP_ERROR_META_KEY`.
+
+## Approval interfaces
+
+```ts
+const ZKMCP_APPROVAL_META_KEY = "io.zkmcp/approval-token";
+
+interface ApprovalVerifier {
+  isApproved: (request: {
+    token?: string;
+    tool: string;
+  }) => boolean | Promise<boolean>;
+}
+```
+
+Built-in prototype implementations:
+
+- `DenyAllApprovalVerifier`
+- `FixedTokenApprovalVerifier`
+
+The fixed-token verifier hashes the expected and supplied values and compares digests with `timingSafeEqual`.

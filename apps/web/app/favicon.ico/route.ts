@@ -1,0 +1,10 @@
+const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#101010"/><path d="M23 35.5a10.5 10.5 0 1 1 7.7 6.5L26 46.7V52h-5v-5.2l6.5-6.5A10.5 10.5 0 0 1 23 35.5Zm10.5-5.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z" fill="#f5f5f5"/></svg>`;
+
+export function GET() {
+  return new Response(icon, {
+    headers: {
+      "cache-control": "public, max-age=86400",
+      "content-type": "image/svg+xml",
+    },
+  });
+}

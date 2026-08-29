@@ -1,0 +1,20 @@
+---
+title: Coding agent recipe
+description: How resource scope and approval could apply to repositories and deployments.
+---
+
+A coding agent naturally needs coarse access to repositories and deployment tooling while still operating under narrower authority.
+
+A future policy using the same primitives could express:
+
+```text
+repository.write
+  resource must be in assigned repositories
+
+deploy.production
+  trusted human approval required
+```
+
+The current prototype does not ship these tool normalizers. To implement them today, extend `normalizeToolCall()` with deterministic resource/approval facts and extend the Compact policy with the corresponding private tool/resource identifiers.
+
+The architectural lesson remains the same: GitHub or deployment credentials establish access; zkMCP should establish authority for the individual action.

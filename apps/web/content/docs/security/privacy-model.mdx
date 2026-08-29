@@ -1,0 +1,37 @@
+---
+title: Privacy model
+description: Which values are visible to the gateway, prover, public ledger, and logs.
+---
+
+Privacy is defined by explicit boundaries, not by hiding the UI.
+
+| Value | Gateway / owner | Compact private input | Public ledger | evlog |
+| --- | ---: | ---: | ---: | ---: |
+| policy secret | yes | yes | no | no |
+| allowed agent | yes | yes | no | no |
+| tool / resource identifiers | yes | yes | no | no |
+| requested payment amount | yes | yes | no | no |
+| private payment maximum | yes | yes | no | no |
+| approval threshold | yes | yes | no | no |
+| approval context / token | yes | derived private boolean | no | no |
+| raw nonce | yes | yes | no | no |
+| prompt | agent side | no | no | no |
+| policy commitment | yes | yes | yes | yes |
+| execution commitment | yes | produced by circuit | yes | yes |
+| nullifier | yes | produced by circuit | yes | yes |
+| transaction ID / block | yes | n/a | yes | yes |
+| proof duration | yes | n/a | application metadata | yes |
+
+## Public receipt
+
+The application deliberately returns only receipt material needed to identify and audit an authorization event.
+
+## Error privacy
+
+The internal error taxonomy can distinguish conditions such as `AMOUNT_EXCEEDS_LIMIT` and `APPROVAL_REQUIRED`. External policy denial metadata is collapsed to:
+
+```text
+policy.AUTHORIZATION_DENIED
+```
+
+That prevents the error channel from revealing which private rule failed.

@@ -1,0 +1,17 @@
+---
+title: Overview
+description: The privacy-preserving authorization layer behind zkMCP.
+---
+
+Midnight provides the proving and ledger layer for zkMCP. The AI model itself is not proven. Instead, Compact proves the deterministic authorization boundary around the model's requested action.
+
+The current package `@zkmcp/midnight` owns:
+
+- wallet setup and synchronization
+- local/private state loading
+- proof server configuration
+- contract connection
+- request nonce generation
+- authorization transaction submission
+- public receipt construction
+- privacy-safe logging and typed error translation

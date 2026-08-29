@@ -1,0 +1,30 @@
+---
+title: Legal agent
+description: "The complete zkMCP demo: matter-scoped documents, external email approval, and private payment limits."
+---
+
+The demo configures `LegalAgent-01` with a private policy containing:
+
+```text
+allowed matter         matter:thompson
+external email         human approval required
+payment maximum        £5,000
+approval threshold     £4,000
+```
+
+Eight scenarios exercise both sides of the boundary:
+
+| Action | Result |
+| --- | --- |
+| read Thompson matter document | authorized |
+| read unrelated matter document | blocked |
+| send external email without approval | blocked |
+| send external email after trusted approval | authorized |
+| transfer £2,750 | authorized |
+| transfer £4,500 without approval | blocked |
+| transfer £4,500 with approval | authorized |
+| transfer £8,000 even with approval | blocked |
+
+The important property is not the legal domain. It is that one committed private policy controls multiple classes of MCP action and every denial happens before the upstream tool handler.
+
+Try all eight cases in the [Playground](/docs/playground).

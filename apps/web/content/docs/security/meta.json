@@ -1,0 +1,10 @@
+{
+  "title": "Security",
+  "pages": [
+    "index",
+    "what-zkmcp-proves",
+    "privacy-model",
+    "threat-model",
+    "logging-and-errors"
+  ]
+}

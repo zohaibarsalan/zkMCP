@@ -1,5 +1,5 @@
-import { DemoShell } from "@/components/demo-shell";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return <DemoShell />;
+export default function Page() {
+  redirect("/docs");
 }

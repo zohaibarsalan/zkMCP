@@ -1,0 +1,50 @@
+---
+title: Testing
+description: Static gates, package tests, Compact compilation, and end-to-end proof validation.
+---
+
+## Repository quality gate
+
+```bash
+npm run foundation:check
+```
+
+This executes:
+
+```text
+Ultracite / Biome
+→ TypeScript builds
+→ workspace tests
+→ Compact compilation
+```
+
+## Core tests
+
+`@zkmcp/core` tests cover stable error codes, retryability, safe presentation, policy-denial collapsing, logging allowlists, and evlog redaction.
+
+## Gateway tests
+
+`@zkmcp/gateway` uses MCP's own in-memory transport to verify:
+
+- authorized calls reach the upstream handler
+- denied calls do not
+- receipt metadata is attached
+- resource and numeric normalization work
+- approval comes from trusted metadata rather than agent arguments
+- malformed protected requests fail before proving
+
+## Midnight end-to-end
+
+```bash
+npm run test:midnight
+```
+
+This requires the local Midnight stack and exercises real proofs/transactions against the Compact contract.
+
+## Full MCP + Midnight path
+
+```bash
+npm run demo:gateway
+```
+
+This is the strongest integration check because it uses real stdio MCP transport plus the real Midnight authorization backend and an upstream MCP server.

@@ -1,0 +1,43 @@
+---
+title: Logging and errors
+description: Privacy-safe local observability and the typed zkMCP error model.
+---
+
+The repository uses **evlog locally only**. No Axiom, Sentry, or remote drain is configured.
+
+## Allowed authorization event fields
+
+A successful event can include:
+
+```text
+policyCommitment
+executionCommitment
+nullifier
+proofDurationMs
+contractAddress
+network
+transactionId
+blockHeight
+result
+stage
+```
+
+Private paths such as prompts, tool arguments, amounts, thresholds, nonces, seeds, mnemonics, private keys, and policy secrets are excluded/redacted.
+
+## Typed errors
+
+The error catalogs are grouped by stage:
+
+| Code | Status | Retryable | Meaning |
+| --- | ---: | --- | --- |
+| `policy.AUTHORIZATION_DENIED` | 403 | no | one or more private policy constraints failed |
+| `replay.NULLIFIER_ALREADY_USED` | 409 | no | authorization was already consumed |
+| `proof.SERVER_UNAVAILABLE` | 503 | yes | local/remote prover cannot be reached |
+| `proof.GENERATION_FAILED` | 500 | yes | prover could not construct the proof |
+| `midnight.CONTRACT_UNAVAILABLE` | 503 | yes | configured deployment cannot be reached |
+| `midnight.INDEXER_UNAVAILABLE` | 503 | yes | public contract state cannot be queried |
+| `midnight.TX_SUBMISSION_FAILED` | 502 | yes | transaction could not be submitted/finalized |
+| `gateway.INVALID_MCP_REQUEST` | 400 | no | request cannot be normalized safely |
+| `gateway.UPSTREAM_TOOL_FAILED` | 502 | yes | authorization succeeded but the upstream handler failed |
+
+Internal catalogs contain more precise policy errors, but privacy-safe metadata deliberately collapses 403 policy failures before they cross the observability or MCP boundary.

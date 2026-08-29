@@ -1,0 +1,16 @@
+---
+title: Overview
+description: Current exported APIs and configuration surfaces in the zkMCP monorepo.
+---
+
+The current codebase has three package boundaries:
+
+| Package | Responsibility |
+| --- | --- |
+| `@zkmcp/gateway` | MCP proxy, request normalization, trusted approval boundary |
+| `@zkmcp/midnight` | Compact/Midnight authorization client and receipt construction |
+| `@zkmcp/core` | typed errors and privacy-safe local observability |
+
+These are **workspace-local packages** in the hackathon repository. They are documented by package name because the code is already separated that way, but they have not been published to npm.
+
+Use the reference pages for the API that exists today. Higher-level helpers such as `definePolicy()` or `wrapMcpServer()` are not implemented yet and are intentionally not documented as real APIs.

@@ -1,0 +1,42 @@
+---
+title: Local setup
+description: Commands for the local docs server, Midnight stack, demo API, and full live playground.
+---
+
+## Documentation only
+
+```bash
+npm run dev:web
+```
+
+Open `http://localhost:4545/docs`.
+
+This mode is self-contained. The playground uses recorded receipts and does not attempt to connect to a local API unless `NEXT_PUBLIC_ZKMCP_API_URL` is configured.
+
+## Midnight only
+
+```bash
+npm run setup:midnight
+```
+
+This starts Docker services, compiles the Compact contract, and deploys it to the local devnet.
+
+## Real MCP CLI demo
+
+```bash
+npm run demo:gateway
+```
+
+## Documentation + live proof playground
+
+```bash
+npm run demo:ui
+```
+
+This first sets up Midnight, then starts the demo API and docs app together with the browser API URL configured.
+
+## Stop Midnight
+
+```bash
+npm run stop:midnight
+```

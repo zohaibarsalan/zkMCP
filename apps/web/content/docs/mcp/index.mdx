@@ -1,0 +1,16 @@
+---
+title: Overview
+description: How zkMCP sits between an MCP client and an existing MCP server.
+---
+
+`ZkMcpGateway` exposes a normal MCP server while holding a client connection to the upstream server. This lets an existing tool server stay focused on tool behavior while zkMCP owns the authorization boundary.
+
+```mermaid
+flowchart LR
+    C[MCP client] --> G[zkMCP MCP server]
+    G --> M[Midnight authorization]
+    G --> U[Upstream MCP client]
+    U --> S[Existing MCP server]
+```
+
+The current gateway protects tools. MCP resources and prompts are not yet intercepted.

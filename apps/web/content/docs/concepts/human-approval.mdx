@@ -1,0 +1,33 @@
+---
+title: Human approval
+description: Trusted approval is carried outside ordinary agent-controlled tool arguments.
+---
+
+An agent must not be able to authorize itself by adding an argument such as:
+
+```json
+{
+  "approved": true
+}
+```
+
+zkMCP therefore resolves approval from trusted MCP metadata. The current demo uses:
+
+```text
+io.zkmcp/approval-token
+```
+
+The gateway passes that token to an `ApprovalVerifier` before constructing the private boolean supplied to Compact.
+
+```ts
+export interface ApprovalVerifier {
+  isApproved: (request: {
+    token?: string;
+    tool: string;
+  }) => boolean | Promise<boolean>;
+}
+```
+
+The prototype includes `DenyAllApprovalVerifier` and a constant-time `FixedTokenApprovalVerifier` for the local demo.
+
+> The fixed token is a hackathon adapter, not the intended production approval mechanism. A production implementation should use signed, scoped, expiring approval capabilities tied to an action or execution context.

@@ -1,0 +1,10 @@
+{
+  "title": "Policies",
+  "pages": [
+    "index",
+    "resource-membership",
+    "numeric-limits",
+    "human-approval",
+    "combining-constraints"
+  ]
+}

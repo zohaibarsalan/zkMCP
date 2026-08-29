@@ -1,0 +1,15 @@
+---
+title: Overview
+description: The guarantees, privacy boundary, threat model, and observability rules of the current zkMCP prototype.
+---
+
+zkMCP is a security boundary around MCP tool execution. The most important documentation is therefore not a feature list; it is an exact statement of what the boundary proves and what remains trusted.
+
+Start with:
+
+- [What zkMCP proves](/docs/security/what-zkmcp-proves)
+- [Privacy model](/docs/security/privacy-model)
+- [Threat model](/docs/security/threat-model)
+- [Logging and errors](/docs/security/logging-and-errors)
+
+The prototype fails closed on malformed requests and private-policy denials, but it is still hackathon infrastructure. Production secret storage, signed approvals, policy rotation, delegated identities, and broader MCP surfaces remain future work.

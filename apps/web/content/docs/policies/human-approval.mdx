@@ -1,0 +1,19 @@
+---
+title: Human approval policy
+description: Add a trusted approval requirement without letting the agent mint approval for itself.
+---
+
+Email authorization currently requires approval. Payment authorization requires approval only above the private threshold.
+
+Approval is resolved by an `ApprovalVerifier` from trusted MCP metadata. Compact receives only the resulting private boolean.
+
+```mermaid
+flowchart LR
+    H[Human / trusted system] --> M[MCP metadata]
+    M --> V[ApprovalVerifier]
+    V --> B[private approved boolean]
+    B --> C[Compact policy]
+    A[Agent tool arguments] -. cannot self-authorize .-> C
+```
+
+Production approval should be signed and scoped to the action being approved. The fixed token verifier exists only for the local hackathon demonstration.

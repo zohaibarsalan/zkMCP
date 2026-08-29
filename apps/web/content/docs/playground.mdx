@@ -1,0 +1,19 @@
+---
+title: Playground
+description: Inspect the authorization boundary with recorded proof receipts or generate fresh local Midnight proofs.
+full: true
+---
+
+The playground is a debugging surface for the real Phase 2 authorization scenarios. It is intentionally embedded in the documentation rather than presented as a separate product dashboard.
+
+- **Recorded mode** works everywhere and uses receipts captured from the verified local Midnight run.
+- **Live mode** appears when the local demo API is configured by `npm run demo:ui`; allowed actions generate a fresh proof and transaction.
+- Denied actions return without an authorization receipt and never invoke the upstream MCP handler.
+
+<AuthorizationPlayground />
+
+## What to look for
+
+Compare the **private policy** on the left with the **public receipt** on the right. The owner/prover can see the rule values. A public verifier only needs commitments, the nullifier, transaction metadata, and proof validity.
+
+For a denied scenario, select **Transfer above maximum**. Even with approval present, the private hard maximum rejects the request and no receipt is committed.

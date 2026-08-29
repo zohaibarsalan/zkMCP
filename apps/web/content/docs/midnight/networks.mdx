@@ -1,0 +1,26 @@
+---
+title: Networks
+description: Local devnet, preview, and preprod configuration in the Midnight client.
+---
+
+The network type currently supports:
+
+```ts
+type NetworkId = "undeployed" | "preview" | "preprod";
+```
+
+The hackathon implementation has been validated end-to-end on the local `undeployed` network.
+
+```bash
+npm run setup:midnight
+```
+
+For local development the command starts:
+
+- Midnight node on `9944`
+- indexer on `8088`
+- proof server on `6300`
+
+The client deliberately does not restore persisted wallet sync state for the ephemeral `undeployed` network. A restarted local chain may be behind a previous wallet checkpoint, so a fresh sync is safer. Preview and preprod can reuse persisted wallet state.
+
+The code contains network configuration for preview and preprod, but this documentation does not claim that the full zkMCP demo has been validated there yet.

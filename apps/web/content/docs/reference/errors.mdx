@@ -1,0 +1,47 @@
+---
+title: Error reference
+description: Stable error codes, stages, HTTP-like statuses, retryability, and privacy-safe presentation.
+---
+
+zkMCP uses evlog error catalogs as typed domain errors.
+
+## Runtime metadata
+
+```ts
+type ZkMcpErrorStage =
+  | "policy"
+  | "proof"
+  | "replay"
+  | "midnight"
+  | "gateway";
+
+interface ZkMcpErrorMetadata {
+  code?: string;
+  retryable: boolean;
+  stage?: ZkMcpErrorStage;
+  status: number;
+}
+```
+
+## Public error codes
+
+| Code | Stage | Status | Retryable |
+| --- | --- | ---: | --- |
+| `policy.AUTHORIZATION_DENIED` | policy | 403 | no |
+| `policy.INVALID_POLICY_STATE` | policy | 500 | no |
+| `replay.NULLIFIER_ALREADY_USED` | replay | 409 | no |
+| `proof.GENERATION_FAILED` | proof | 500 | yes |
+| `proof.SERVER_UNAVAILABLE` | proof | 503 | yes |
+| `proof.VERIFICATION_FAILED` | proof | 403 | no |
+| `midnight.CONTRACT_UNAVAILABLE` | midnight | 503 | yes |
+| `midnight.INDEXER_UNAVAILABLE` | midnight | 503 | yes |
+| `midnight.INVALID_STATE` | midnight | 500 | no |
+| `midnight.TX_SUBMISSION_FAILED` | midnight | 502 | yes |
+| `gateway.INVALID_MCP_REQUEST` | gateway | 400 | no |
+| `gateway.UPSTREAM_TOOL_FAILED` | gateway | 502 | yes |
+
+## Private policy diagnostics
+
+The internal catalog also contains specific entries such as `AGENT_NOT_AUTHORIZED`, `TOOL_NOT_AUTHORIZED`, `AMOUNT_EXCEEDS_LIMIT`, `APPROVAL_REQUIRED`, and `POLICY_MISMATCH`.
+
+`getPrivacySafeErrorMetadata()` deliberately replaces 403 policy codes with `policy.AUTHORIZATION_DENIED` before external presentation. Do not bypass that helper in an API or log sink if the private policy structure matters.

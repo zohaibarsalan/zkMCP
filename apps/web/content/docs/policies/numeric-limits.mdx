@@ -1,0 +1,23 @@
+---
+title: Private numeric limits
+description: Prove that a payment satisfies hidden numeric thresholds without publishing the thresholds.
+---
+
+The payment policy contains two private numbers:
+
+```text
+maxPaymentAmount
+paymentApprovalThreshold
+```
+
+A transfer must satisfy the hard maximum. If it crosses the approval threshold, a trusted approval must also be present.
+
+```text
+amount <= maxPaymentAmount
+AND
+(amount <= paymentApprovalThreshold OR approved == true)
+```
+
+The demo policy uses a £5,000 hard maximum and a £4,000 approval threshold. Those numbers are visible to the local policy owner in the playground, but they are not written to the public Midnight ledger.
+
+An £8,000 request remains denied even when approval is present because approval cannot override the hard maximum.

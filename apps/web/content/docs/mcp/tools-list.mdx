@@ -1,0 +1,10 @@
+---
+title: tools/list
+description: Tool discovery is transparently proxied from the upstream MCP server.
+---
+
+`tools/list` does not need a zero-knowledge authorization decision. The gateway forwards the request to the upstream MCP client and returns the upstream result.
+
+While proxying the response, zkMCP stores each tool's output schema so later `tools/call` responses can be projected correctly by the MCP SDK.
+
+This preserves the existing server's tool definitions instead of creating a second copy inside zkMCP.

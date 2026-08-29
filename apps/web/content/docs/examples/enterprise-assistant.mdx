@@ -1,0 +1,14 @@
+---
+title: Enterprise assistant recipe
+description: Resource-bound access to internal documents and systems.
+---
+
+The implemented `documents.read` demo uses a single legal matter as its private resource scope. The same shape can represent an internal department, tenant, project, customer, or data classification.
+
+```text
+agent has access to document MCP server
+BUT
+requested resource must equal / belong to private authorized scope
+```
+
+The current contract proves equality against one private resource identifier. Rich membership sets, Merkle-based scopes, role hierarchies, and multiple resources are future extensions rather than current capabilities.

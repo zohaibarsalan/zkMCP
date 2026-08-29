@@ -1,0 +1,28 @@
+---
+title: Compact contract
+description: The authorization circuit that binds requests to a committed private policy.
+---
+
+The contract lives at:
+
+```text
+packages/midnight/contracts/authorization.compact
+```
+
+The constructor commits the private policy. The `authorize` circuit receives normalized private request facts and a fresh nonce.
+
+Conceptually it enforces:
+
+```text
+hash(privatePolicy) == ledger.policyCommitment
+agent is allowed
+tool is allowed
+resource rule passes
+numeric rule passes
+approval rule passes
+nullifier has not been used
+```
+
+Successful execution updates public receipt fields such as the latest execution commitment and nullifier. Failed assertions abort the authorization path.
+
+The contract is intentionally narrow. It proves the authorization primitive first rather than attempting to encode arbitrary application logic or LLM inference in ZK.

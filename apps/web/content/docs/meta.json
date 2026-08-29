@@ -1,0 +1,17 @@
+{
+  "title": "zkMCP",
+  "pages": [
+    "index",
+    "getting-started",
+    "playground",
+    "concepts",
+    "mcp",
+    "policies",
+    "midnight",
+    "security",
+    "reference",
+    "examples",
+    "development",
+    "[HTTP Demo API](/api-reference)"
+  ]
+}

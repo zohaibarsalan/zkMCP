@@ -1,0 +1,70 @@
+---
+title: Midnight client API
+description: Connect to the authorization contract and generate proof-backed authorization receipts.
+---
+
+## Create a client
+
+```ts
+const client = await createMidnightAuthorizationClient({
+  network: "undeployed",
+});
+```
+
+```ts
+interface MidnightAuthorizationClientOptions {
+  network?: "undeployed" | "preview" | "preprod";
+}
+```
+
+When `network` is omitted, the package resolves the active network from its local deployment state and falls back to `undeployed`.
+
+## Authorize
+
+```ts
+interface MidnightAuthorizationRequest {
+  agent: string;
+  tool: string;
+  amount?: bigint;
+  approved?: boolean;
+  resource?: string;
+}
+```
+
+```ts
+const receipt = await client.authorize({
+  agent: "LegalAgent-01",
+  tool: "payments.transfer",
+  amount: 2750n,
+  approved: false,
+});
+```
+
+## Receipt
+
+```ts
+interface MidnightAuthorizationReceipt {
+  blockHeight: number;
+  contractAddress: string;
+  executionCommitment: string;
+  network: NetworkId;
+  nullifier: string;
+  policyCommitment: string;
+  proofDurationMs: number;
+  transactionId: string;
+}
+```
+
+The client also exposes readonly `contractAddress`, `network`, and `policyCommitment` properties after connection.
+
+## Close
+
+```ts
+await client.close();
+```
+
+`close()` waits for queued authorization work, persists wallet state where appropriate, and stops the wallet facade.
+
+## Concurrency note
+
+Calls to `authorize()` are currently serialized through an internal promise tail. Treat one client instance as a sequential authorizer until wallet/proving concurrency is explicitly redesigned.

@@ -1,0 +1,15 @@
+---
+title: Overview
+description: Work on zkMCP locally without breaking the proving, privacy, or MCP boundaries.
+---
+
+The repository is an npm workspace with four main areas:
+
+```text
+apps/web          documentation and playground
+packages/core     errors + local observability
+packages/gateway  MCP proxy + demo API
+packages/midnight Compact + Midnight client
+```
+
+Before changing behavior, run the existing tests and understand which layer owns the change. Tool normalization belongs in the gateway. Private authorization constraints belong in Compact/Midnight. Privacy-safe errors/logging belong in core. Documentation and debugging UX belong in the web app.

@@ -1,0 +1,11 @@
+{
+  "title": "Concepts",
+  "pages": [
+    "index",
+    "access-vs-authority",
+    "authorization-lifecycle",
+    "private-policies",
+    "proof-receipts",
+    "human-approval"
+  ]
+}

@@ -12,6 +12,7 @@ coverage/
 .vercel/
 
 .evlog/
+.source/
 midnight-level-db/
 authorization-state/
 .midnight-state.json

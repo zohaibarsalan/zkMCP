@@ -1,0 +1,35 @@
+---
+title: Configuration
+description: Environment variables and local runtime inputs used by the current prototype.
+---
+
+The prototype is configured mostly by the Midnight package's local state plus a small set of environment variables.
+
+## Midnight endpoints
+
+The network module supports endpoint overrides for node, indexer, indexer WebSocket, faucet, and proof server. Local `undeployed` defaults are:
+
+```text
+node         ws://127.0.0.1:9944
+indexer      http://127.0.0.1:8088/api/v4/graphql
+indexer WS   ws://127.0.0.1:8088/api/v4/graphql/ws
+proof server http://127.0.0.1:6300
+```
+
+## Wallet identity
+
+Public-network wallet configuration supports the repository's Midnight wallet seed/mnemonic environment options. Never commit either value.
+
+## Private-state password
+
+`PRIVATE_STATE_PASSWORD` can override the local private-state storage password. The built-in fallback is only a local-development placeholder.
+
+## Documentation playground
+
+The browser playground enables live mode only when:
+
+```text
+NEXT_PUBLIC_ZKMCP_API_URL
+```
+
+is set. `npm run demo:ui` configures it as `http://127.0.0.1:8787` automatically. Without it, the docs stay in self-contained recorded mode.

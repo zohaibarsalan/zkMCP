@@ -1,0 +1,21 @@
+---
+title: Combining constraints
+description: A successful proof represents the conjunction of all relevant authorization rules.
+---
+
+zkMCP authorization is not a collection of independent advisory checks. The Compact circuit asserts the relevant rules together.
+
+For a payment request, the statement is conceptually:
+
+```text
+committed policy is correct
+AND configured agent is allowed
+AND requested tool is allowed
+AND amount is below private maximum
+AND approval rule is satisfied
+AND authorization nonce is unused
+```
+
+If any assertion fails, no authorization receipt is committed and the upstream MCP tool is not invoked.
+
+This is why the proof receipt can be treated as evidence for the complete authorization envelope rather than evidence for a single condition.

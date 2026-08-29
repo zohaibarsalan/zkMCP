@@ -1,0 +1,50 @@
+---
+title: Troubleshooting
+description: Common local Midnight, MCP, proving, and documentation development failures.
+---
+
+## `proof.SERVER_UNAVAILABLE`
+
+Confirm the proof server is running:
+
+```bash
+docker compose -f packages/midnight/docker-compose.yml ps
+```
+
+The local proof endpoint is normally `http://127.0.0.1:6300`.
+
+## `midnight.CONTRACT_UNAVAILABLE`
+
+Run:
+
+```bash
+npm run setup:midnight
+```
+
+The current client expects a deployment record for the selected network. Restarting the ephemeral local chain may require a fresh deployment.
+
+## Local wallet appears to sync forever
+
+The `undeployed` network is ephemeral. zkMCP intentionally disables restored child-wallet sync state for this network because a previously persisted checkpoint can be ahead of a restarted chain. If you are working on an older checkout, remove local Midnight state and run setup again.
+
+## `policy.AUTHORIZATION_DENIED`
+
+This is intentionally generic. The external error does not reveal which private rule failed. Use a known test scenario and inspect trusted local inputs rather than changing the error to expose the hidden constraint.
+
+## Playground says recorded mode
+
+That is expected when running only:
+
+```bash
+npm run dev:web
+```
+
+Use `npm run demo:ui` for the local live proof backend.
+
+## MCP client stalls before `initialize`
+
+The validated stdio integration uses the MCP TypeScript v2 SDK with explicit legacy/2025 version negotiation for the nested demo transports. Be careful when changing negotiation mode; the SDK's auto era-probing previously stalled the nested stdio topology before any Midnight request was made.
+
+## Runtime `StateValue` instance errors
+
+The repository pins `@midnight-ntwrk/onchain-runtime-v3` to `3.0.0` because physically duplicated incompatible runtime instances caused `instanceof StateValue` failures even while compilation/deployment succeeded. Do not remove the override without re-running the real transaction suite.

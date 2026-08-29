@@ -1,0 +1,60 @@
+---
+title: Installation
+description: Install the zkMCP monorepo and verify the local toolchain.
+---
+
+## Clone and install
+
+```bash
+ git clone https://github.com/zohaibarsalan/zkMCP.git
+ cd zkMCP
+ npm install
+```
+
+The project uses a single npm workspace and root lockfile.
+
+## Verify the toolchain
+
+```bash
+node --version
+docker --version
+docker compose version
+compact --version
+compact compile --version
+```
+
+The validated local stack uses:
+
+| Component | Version used by the prototype |
+| --- | --- |
+| Node.js | 22+ |
+| Compact compiler | `0.31.1` |
+| Midnight.js | `4.1.1` |
+| Midnight proof server | `8.1.0` |
+| MCP TypeScript SDK | `2.0.0` |
+| Next.js | `16.3.3` |
+
+## Code quality
+
+Run the repository-wide quality gate at any time:
+
+```bash
+npm run foundation:check
+```
+
+It runs Ultracite/Biome, TypeScript checks, package tests, and Compact compilation.
+
+## Generated and private state
+
+The following local artifacts are intentionally gitignored:
+
+```text
+.evlog/
+authorization-state/
+midnight-level-db/
+.midnight-state.json
+.midnight-wallet-state/
+.zkmcp-policy.json
+```
+
+Do not copy these files into logs, bug reports, or public artifacts without inspecting them first.
