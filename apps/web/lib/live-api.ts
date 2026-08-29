@@ -1,20 +1,35 @@
 import type { ProofReceipt } from "./demo-data";
 
 const BUILD_API_URL = process.env.NEXT_PUBLIC_ZKMCP_API_URL?.replace(/\/$/, "");
-const LOCAL_API_URL = "http://127.0.0.1:8787";
+const RECORDING_TUNNEL_SUFFIX = ".trycloudflare.com";
+const TRAILING_SLASH = /\/$/;
 
-function getApiUrl(): string | undefined {
-  if (BUILD_API_URL) {
-    return BUILD_API_URL;
-  }
-
+function getRecordingApiUrl(): string | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
 
-  return new URLSearchParams(window.location.search).get("live") === "local"
-    ? LOCAL_API_URL
-    : undefined;
+  const value = new URLSearchParams(window.location.search).get("live");
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      !url.hostname.endsWith(RECORDING_TUNNEL_SUFFIX)
+    ) {
+      return undefined;
+    }
+    return url.toString().replace(TRAILING_SLASH, "");
+  } catch {
+    return undefined;
+  }
+}
+
+function getApiUrl(): string | undefined {
+  return BUILD_API_URL ?? getRecordingApiUrl();
 }
 
 export interface LiveHealth {
