@@ -6,12 +6,15 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
+    "build:web": "npm run build --workspace=@zkmcp/web",
     "check": "ultracite check",
     "compile:contracts": "npm run compile --workspace=@zkmcp/midnight",
     "demo:gateway": "npm run demo:gateway --workspace=@zkmcp/gateway",
+    "dev:web": "npm run dev --workspace=@zkmcp/web",
     "fix": "ultracite fix",
     "foundation:check": "npm run check && npm run typecheck && npm test && npm run compile:contracts",
     "serve:gateway-demo": "npm run serve:demo --workspace=@zkmcp/gateway",
