@@ -12,6 +12,10 @@
   ],
   "license": "MIT",
   "type": "module",
+  "exports": {
+    ".": "./src/client.ts",
+    "./authorization-state": "./src/authorization-state.ts"
+  },
   "scripts": {
     "build": "npx tsc --noEmit",
     "check-balance": "npx tsx src/check-balance.ts",

@@ -2,18 +2,22 @@ pragma language_version >= 0.23;
 
 import CompactStandardLibrary;
 
-// A private authorization policy. The policy never enters public ledger state
-// directly; only its domain-separated commitment is anchored on-chain.
+// A private authorization policy for the initial zkMCP tool classes. The
+// policy itself never enters public ledger state; only its salted commitment
+// is anchored on-chain.
 export struct Policy {
     secret: Bytes<32>;
     allowedAgent: Bytes<32>;
-    allowedTool: Bytes<32>;
-    maxAmount: Uint<64>;
-    approvalThreshold: Uint<64>;
+    documentsTool: Bytes<32>;
+    emailTool: Bytes<32>;
+    paymentsTool: Bytes<32>;
+    allowedResource: Bytes<32>;
+    maxPaymentAmount: Uint<64>;
+    paymentApprovalThreshold: Uint<64>;
 }
 
 // Public receipt material for an authorized action. A committed receipt means
-// the action satisfied the private policy bound to policyCommitment.
+// the private request satisfied the private policy bound to policyCommitment.
 export struct AuthorizationReceipt {
     policyCommitment: Bytes<32>;
     executionCommitment: Bytes<32>;
@@ -25,22 +29,19 @@ export struct AuthorizationReceipt {
 // the immutable commitment pinned at contract construction.
 witness getPolicy(): Policy;
 
-// The policy commitment is immutable for this Phase 1 contract. A later phase
-// can add a separately-authorized policy-rotation mechanism.
 export sealed ledger policyCommitment: Bytes<32>;
-
-// A nullifier is consumed exactly once. This prevents an authorization proof
-// from being replayed for the same execution nonce.
 export ledger usedNullifiers: Set<Bytes<32>>;
 export ledger lastExecutionCommitment: Bytes<32>;
 export ledger lastNullifier: Bytes<32>;
 export ledger authorizationCount: Counter;
 
-// Hash the entire private policy, including a random 32-byte secret. The secret
-// prevents low-entropy policy values (for example a £5,000 limit) from being
-// brute-forced from the public commitment.
+// The random policy secret prevents low-entropy values such as limits or
+// matter identifiers from being brute-forced from the public commitment.
 export pure circuit hashPolicy(policy: Policy): Bytes<32> {
     return persistentHash<[
+        Bytes<32>,
+        Bytes<32>,
+        Bytes<32>,
         Bytes<32>,
         Bytes<32>,
         Bytes<32>,
@@ -48,21 +49,25 @@ export pure circuit hashPolicy(policy: Policy): Bytes<32> {
         Uint<64>,
         Uint<64>
     ]>([
-        pad(32, "zkmcp:policy:v1"),
+        pad(32, "zkmcp:policy:v2"),
         policy.secret,
         policy.allowedAgent,
-        policy.allowedTool,
-        policy.maxAmount,
-        policy.approvalThreshold
+        policy.documentsTool,
+        policy.emailTool,
+        policy.paymentsTool,
+        policy.allowedResource,
+        policy.maxPaymentAmount,
+        policy.paymentApprovalThreshold
     ]);
 }
 
-// Bind the private request to the committed policy. The random nonce makes the
-// commitment unlinkable across otherwise-identical requests.
+// Bind the private request to the committed policy. requestResource is used by
+// resource-scoped tools and ignored by policy branches that do not need it.
 pure circuit hashExecution(
     committedPolicy: Bytes<32>,
     requestAgent: Bytes<32>,
     requestTool: Bytes<32>,
+    requestResource: Bytes<32>,
     requestAmount: Uint<64>,
     approved: Boolean,
     nonce: Bytes<32>
@@ -72,14 +77,16 @@ pure circuit hashExecution(
         Bytes<32>,
         Bytes<32>,
         Bytes<32>,
+        Bytes<32>,
         Uint<64>,
         Boolean,
         Bytes<32>
     ]>([
-        pad(32, "zkmcp:execution:v1"),
+        pad(32, "zkmcp:execution:v2"),
         committedPolicy,
         requestAgent,
         requestTool,
+        requestResource,
         requestAmount,
         approved,
         nonce
@@ -96,17 +103,24 @@ pure circuit hashNullifier(policySecret: Bytes<32>, nonce: Bytes<32>): Bytes<32>
 
 constructor() {
     const policy = getPolicy();
-    assert(policy.maxAmount > 0, "Policy max amount must be greater than zero");
-    assert(policy.approvalThreshold <= policy.maxAmount, "Approval threshold must not exceed max amount");
+    assert(policy.maxPaymentAmount > 0, "Payment max amount must be greater than zero");
+    assert(
+        policy.paymentApprovalThreshold <= policy.maxPaymentAmount,
+        "Payment approval threshold must not exceed max amount"
+    );
     policyCommitment = disclose(hashPolicy(policy));
 }
 
 // Prove that one concrete agent action is authorized by the private policy.
-// requestAgent, requestTool, requestAmount, approved and nonce are private
-// circuit inputs unless/except where transformed into the commitments below.
+// None of the request inputs are disclosed directly. The tool selects one of
+// three private policy branches:
+//   documents.read     -> resource membership
+//   email.send         -> human approval
+//   payments.transfer  -> private amount + approval threshold
 export circuit authorize(
     requestAgent: Bytes<32>,
     requestTool: Bytes<32>,
+    requestResource: Bytes<32>,
     requestAmount: Uint<64>,
     approved: Boolean,
     nonce: Bytes<32>
@@ -114,31 +128,61 @@ export circuit authorize(
     const policy = getPolicy();
     const computedPolicyCommitment = hashPolicy(policy);
 
-    // The prover cannot swap in an easier policy: it must open the exact policy
-    // whose commitment was pinned when the contract was deployed.
-    assert(computedPolicyCommitment == policyCommitment, "Private policy does not match committed policy");
-
+    assert(
+        computedPolicyCommitment == policyCommitment,
+        "Private policy does not match committed policy"
+    );
     assert(requestAgent == policy.allowedAgent, "Agent is not authorized by policy");
-    assert(requestTool == policy.allowedTool, "Tool is not authorized by policy");
-    assert(requestAmount <= policy.maxAmount, "Amount exceeds private policy limit");
-    assert(requestAmount <= policy.approvalThreshold || approved, "Human approval required by private policy");
+
+    const isDocumentsRead = requestTool == policy.documentsTool;
+    const isEmailSend = requestTool == policy.emailTool;
+    const isPaymentTransfer = requestTool == policy.paymentsTool;
+
+    assert(
+        isDocumentsRead || isEmailSend || isPaymentTransfer,
+        "Tool is not authorized by policy"
+    );
+
+    if (isDocumentsRead) {
+        assert(
+            requestResource == policy.allowedResource,
+            "Resource is not authorized by private policy"
+        );
+    }
+
+    if (isEmailSend) {
+        assert(approved, "Human approval required by private email policy");
+    }
+
+    if (isPaymentTransfer) {
+        assert(
+            requestAmount <= policy.maxPaymentAmount,
+            "Amount exceeds private payment limit"
+        );
+        assert(
+            requestAmount <= policy.paymentApprovalThreshold || approved,
+            "Human approval required by private payment policy"
+        );
+    }
 
     const executionCommitment = hashExecution(
         computedPolicyCommitment,
         requestAgent,
         requestTool,
+        requestResource,
         requestAmount,
         approved,
         nonce
     );
     const nullifier = hashNullifier(policy.secret, nonce);
 
-    // Only commitments/nullifier are deliberately disclosed. Raw policy and
-    // request values remain witness/private circuit data.
     const publicExecutionCommitment = disclose(executionCommitment);
     const publicNullifier = disclose(nullifier);
 
-    assert(!usedNullifiers.member(publicNullifier), "Authorization nonce has already been used");
+    assert(
+        !usedNullifiers.member(publicNullifier),
+        "Authorization nonce has already been used"
+    );
     usedNullifiers.insert(publicNullifier);
     lastExecutionCommitment = publicExecutionCommitment;
     lastNullifier = publicNullifier;
