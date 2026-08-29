@@ -1,6 +1,21 @@
 import type { ProofReceipt } from "./demo-data";
 
-const API_URL = process.env.NEXT_PUBLIC_ZKMCP_API_URL?.replace(/\/$/, "");
+const BUILD_API_URL = process.env.NEXT_PUBLIC_ZKMCP_API_URL?.replace(/\/$/, "");
+const LOCAL_API_URL = "http://127.0.0.1:8787";
+
+function getApiUrl(): string | undefined {
+  if (BUILD_API_URL) {
+    return BUILD_API_URL;
+  }
+
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  return new URLSearchParams(window.location.search).get("live") === "local"
+    ? LOCAL_API_URL
+    : undefined;
+}
 
 export interface LiveHealth {
   mode: "live" | "recorded";
@@ -24,11 +39,12 @@ export interface LiveRunResult {
 }
 
 export async function getLiveHealth(): Promise<LiveHealth> {
-  if (!API_URL) {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
     return { mode: "recorded", ready: false };
   }
 
-  const response = await fetch(`${API_URL}/health`, { cache: "no-store" });
+  const response = await fetch(`${apiUrl}/health`, { cache: "no-store" });
   const body = (await response.json()) as LiveHealth;
   if (!response.ok) {
     return { mode: "recorded", ready: false };
@@ -39,11 +55,12 @@ export async function getLiveHealth(): Promise<LiveHealth> {
 export async function runLiveScenario(
   scenarioId: string
 ): Promise<LiveRunResult> {
-  if (!API_URL) {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
     throw new Error("Live zkMCP backend is not configured for this deployment");
   }
 
-  const response = await fetch(`${API_URL}/run`, {
+  const response = await fetch(`${apiUrl}/run`, {
     body: JSON.stringify({ scenarioId }),
     headers: { "content-type": "application/json" },
     method: "POST",

@@ -4,10 +4,11 @@ Target: **under 2 minutes**. This is a screen/talking-point guide, not a memoriz
 
 ## Before recording
 
-- Start with `npm run demo:ui` and wait until the docs/playground says the live backend is ready.
+- Start with `npm run demo:recording` and wait until the local demo API is ready.
+- Open `https://zkmcp.zohaibarsalan.me/docs/playground?live=local`. The explicit query parameter makes the hosted docs use the proof backend on your own machine; ordinary visitors remain in recorded mode.
 - Keep a terminal with the Midnight proof-server logs available in another window/tab.
 - Use the docs in dark mode.
-- Have `/docs`, `/docs/architecture`, and `/docs/playground` ready.
+- Have the hosted `/docs`, `/docs/architecture`, and `/docs/playground?live=local` tabs ready.
 - The hackathon requires the video to identify the **Midnight Hackathon** at the beginning.
 - Do not claim Preprod/public-chain deployment. The fully verified run is the local Midnight `undeployed` environment.
 
