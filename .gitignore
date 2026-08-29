@@ -17,3 +17,6 @@ authorization-state/
 .midnight-state.json
 .midnight-wallet-state/
 .zkmcp-policy.json
+
+# Next.js generates this differently for dev/build
+apps/web/next-env.d.ts

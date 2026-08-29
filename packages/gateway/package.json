@@ -15,6 +15,7 @@
     "demo:gateway": "tsx src/demo-client.ts",
     "demo:upstream": "tsx src/demo-upstream.ts",
     "serve:demo": "tsx src/stdio.ts -- npx tsx src/demo-upstream.ts",
+    "serve:demo-api": "tsx src/demo-api.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {

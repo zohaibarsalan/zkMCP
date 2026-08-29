@@ -197,7 +197,12 @@ async function main() {
     "─── Wallet setup ───────────────────────────────────────────────\n"
   );
   console.log("  Creating wallet...");
-  const walletCtx = await createWallet({ network, networkConfig, seed });
+  const walletCtx = await createWallet({
+    network,
+    networkConfig,
+    restore: network !== "undeployed",
+    seed,
+  });
   const restoredCount = Object.values(walletCtx.restored).filter(
     Boolean
   ).length;

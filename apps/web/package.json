@@ -7,8 +7,8 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "next dev --turbopack",
-    "start": "next start",
+    "dev": "next dev --turbopack -p 4545",
+    "start": "next start -p 4545",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

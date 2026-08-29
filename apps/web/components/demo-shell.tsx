@@ -11,9 +11,11 @@ import {
   FileText,
   Fingerprint,
   KeyRound,
+  LoaderCircle,
   LockKeyhole,
   Mail,
   Network,
+  Radio,
   ReceiptText,
   ShieldCheck,
   Sparkles,
@@ -22,12 +24,17 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type DemoStep,
   recordedRun,
   recordedRunMetadata,
 } from "@/lib/demo-data";
+import {
+  getLiveHealth,
+  type LiveRunResult,
+  runLiveScenario,
+} from "@/lib/live-api";
 
 const toolIcons = {
   "documents.read": FileText,
@@ -297,9 +304,44 @@ function ExecutionTrace({
   );
 }
 
-function Inspector({ step }: { step: DemoStep }) {
-  const { receipt } = step;
-  const authorized = step.status === "authorized";
+type BackendMode = "checking" | "live" | "recorded";
+
+function Inspector({
+  backendMode,
+  liveResult,
+  onRun,
+  runError,
+  running,
+  step,
+}: {
+  backendMode: BackendMode;
+  liveResult?: LiveRunResult;
+  onRun: () => void;
+  runError?: string;
+  running: boolean;
+  step: DemoStep;
+}) {
+  const receipt = liveResult?.receipt ?? step.receipt;
+  let status: DemoStep["status"] = step.status;
+  if (liveResult) {
+    status = liveResult.isError ? "denied" : "authorized";
+  }
+  const authorized = status === "authorized";
+  const isLive = Boolean(liveResult);
+  let actionLabel = authorized
+    ? "Generate a live proof"
+    : "Test live authorization";
+  if (running) {
+    actionLabel = "Authorizing with Midnight…";
+  }
+  let liveHint = "Recorded mode. Run `npm run demo:ui` to enable live proofs.";
+  if (backendMode === "checking") {
+    liveHint = "Checking for the local zkMCP demo backend…";
+  } else if (backendMode === "live") {
+    liveHint = authorized
+      ? "Allowed actions take ~20–25s on the local proof server."
+      : "Denied constraints usually return before proof generation.";
+  }
 
   return (
     <section className="panel-glow overflow-hidden rounded-2xl border border-white/[0.09] bg-[rgba(14,16,14,.82)]">
@@ -310,15 +352,22 @@ function Inspector({ step }: { step: DemoStep }) {
               <Network size={15} />
             </div>
             <div>
-              <h2 className="font-semibold text-[13px] text-white/90">
-                What Midnight exposed
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-[13px] text-white/90">
+                  What Midnight exposed
+                </h2>
+                {isLive ? (
+                  <span className="rounded border border-[rgba(140,231,255,.18)] bg-[rgba(140,231,255,.06)] px-1.5 py-0.5 font-mono text-[#8ce7ff]/70 text-[8px] uppercase tracking-[0.09em]">
+                    live
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-[10px] text-white/36">
                 Public ledger view · selected action
               </p>
             </div>
           </div>
-          <StatusPill status={step.status} />
+          <StatusPill status={status} />
         </div>
       </div>
 
@@ -363,6 +412,10 @@ function Inspector({ step }: { step: DemoStep }) {
               label="Transaction"
               value={shortHex(receipt.transactionId)}
             />
+            <ReceiptRow
+              label="Contract"
+              value={shortHex(receipt.contractAddress)}
+            />
             <div className="grid grid-cols-2 gap-1.5">
               <ReceiptRow label="Block" value={`#${receipt.blockHeight}`} />
               <ReceiptRow
@@ -400,6 +453,30 @@ function Inspector({ step }: { step: DemoStep }) {
             ))}
           </div>
         </div>
+
+        <div className="mt-4 border-white/[0.06] border-t pt-3.5">
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[rgba(184,255,114,.22)] bg-[rgba(184,255,114,.08)] px-3 py-2.5 font-semibold text-[#c8ff91] text-[10.5px] transition hover:bg-[rgba(184,255,114,.12)] disabled:cursor-not-allowed disabled:border-white/[0.07] disabled:bg-white/[0.025] disabled:text-white/28"
+            disabled={backendMode !== "live" || running}
+            onClick={onRun}
+            type="button"
+          >
+            {running ? (
+              <LoaderCircle className="animate-spin" size={13} />
+            ) : (
+              <Radio size={13} />
+            )}
+            {actionLabel}
+          </button>
+          <div className="mt-2 text-center text-[8.5px] text-white/27 leading-relaxed">
+            {liveHint}
+          </div>
+          {runError ? (
+            <div className="mt-2 rounded-lg border border-[rgba(255,117,111,.14)] bg-[rgba(255,117,111,.045)] px-2.5 py-2 text-center text-[#ff938e]/70 text-[8.5px]">
+              {runError}
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   );
@@ -418,10 +495,62 @@ function ReceiptRow({ label, value }: { label: string; value: string }) {
 
 export function DemoShell() {
   const [selectedId, setSelectedId] = useState("payment-allowed");
+  const [backendMode, setBackendMode] = useState<BackendMode>("checking");
+  const [liveResults, setLiveResults] = useState<Record<string, LiveRunResult>>(
+    {}
+  );
+  const [runningId, setRunningId] = useState<string>();
+  const [runError, setRunError] = useState<string>();
   const selected = useMemo(
     () => recordedRun.find((step) => step.id === selectedId) ?? recordedRun[0],
     [selectedId]
   );
+  const selectedLiveResult = liveResults[selectedId];
+  let backendLabel = "Recorded chain run";
+  if (backendMode === "checking") {
+    backendLabel = "Checking live backend";
+  } else if (backendMode === "live") {
+    backendLabel = "Live backend ready";
+  }
+
+  useEffect(() => {
+    let active = true;
+    getLiveHealth()
+      .then((health) => {
+        if (active) {
+          setBackendMode(health.ready ? "live" : "recorded");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setBackendMode("recorded");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setRunError(undefined);
+  }, []);
+
+  const handleLiveRun = useCallback(async () => {
+    setRunningId(selectedId);
+    setRunError(undefined);
+    try {
+      const result = await runLiveScenario(selectedId);
+      setLiveResults((current) => ({ ...current, [selectedId]: result }));
+    } catch {
+      setRunError(
+        "Live authorization failed. Check the local Midnight stack and demo API."
+      );
+      setBackendMode("recorded");
+    } finally {
+      setRunningId(undefined);
+    }
+  }, [selectedId]);
 
   return (
     <main className="mx-auto w-full max-w-[1540px] px-4 pt-4 pb-16 sm:px-6 lg:px-8">
@@ -446,9 +575,21 @@ export function DemoShell() {
           <span className="hidden rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 font-medium text-[9px] text-white/38 sm:inline-flex">
             AI Track · Midnight Hackathon
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(184,255,114,.17)] bg-[rgba(184,255,114,.055)] px-2.5 py-1 font-medium text-[#c8ff91]/72 text-[9px]">
-            <span className="live-pulse size-1.5 rounded-full bg-[#b8ff72]" />
-            Recorded chain run
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-[9px] ${
+              backendMode === "live"
+                ? "border-[rgba(184,255,114,.17)] bg-[rgba(184,255,114,.055)] text-[#c8ff91]/72"
+                : "border-white/[0.08] bg-white/[0.025] text-white/38"
+            }`}
+          >
+            <span
+              className={`size-1.5 rounded-full ${
+                backendMode === "live"
+                  ? "live-pulse bg-[#b8ff72]"
+                  : "bg-white/25"
+              }`}
+            />
+            {backendLabel}
           </span>
         </div>
       </header>
@@ -543,8 +684,15 @@ export function DemoShell() {
 
       <section className="grid gap-3.5 xl:grid-cols-[.78fr_1.35fr_1fr]">
         <PrivatePolicyCard />
-        <ExecutionTrace onSelect={setSelectedId} selectedId={selectedId} />
-        <Inspector step={selected} />
+        <ExecutionTrace onSelect={handleSelect} selectedId={selectedId} />
+        <Inspector
+          backendMode={backendMode}
+          liveResult={selectedLiveResult}
+          onRun={handleLiveRun}
+          runError={runError}
+          running={runningId === selectedId}
+          step={selected}
+        />
       </section>
 
       <section className="mt-3.5 grid gap-3.5 md:grid-cols-3">

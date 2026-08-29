@@ -249,6 +249,7 @@ export class MidnightAuthorizationClient {
       cwd: midnightRoot,
       network,
       networkConfig,
+      restore: network !== "undeployed",
       seed: wallet.seed,
     });
 
