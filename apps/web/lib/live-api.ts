@@ -1,7 +1,11 @@
 import type { ProofReceipt } from "./demo-data";
 
 const BUILD_API_URL = process.env.NEXT_PUBLIC_ZKMCP_API_URL?.replace(/\/$/, "");
-const RECORDING_TUNNEL_SUFFIX = ".trycloudflare.com";
+const RECORDING_TUNNEL_SUFFIXES = [
+  ".trycloudflare.com",
+  ".ngrok-free.app",
+] as const;
+const NGROK_TUNNEL_SUFFIX = ".ngrok-free.app";
 const TRAILING_SLASH = /\/$/;
 
 function getRecordingApiUrl(): string | undefined {
@@ -18,7 +22,7 @@ function getRecordingApiUrl(): string | undefined {
     const url = new URL(value);
     if (
       url.protocol !== "https:" ||
-      !url.hostname.endsWith(RECORDING_TUNNEL_SUFFIX)
+      !RECORDING_TUNNEL_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix))
     ) {
       return undefined;
     }
@@ -53,13 +57,24 @@ export interface LiveRunResult {
   scenarioId: string;
 }
 
+function getRecordingHeaders(
+  apiUrl: string
+): Record<string, string> | undefined {
+  return new URL(apiUrl).hostname.endsWith(NGROK_TUNNEL_SUFFIX)
+    ? { "ngrok-skip-browser-warning": "true" }
+    : undefined;
+}
+
 export async function getLiveHealth(): Promise<LiveHealth> {
   const apiUrl = getApiUrl();
   if (!apiUrl) {
     return { mode: "recorded", ready: false };
   }
 
-  const response = await fetch(`${apiUrl}/health`, { cache: "no-store" });
+  const response = await fetch(`${apiUrl}/health`, {
+    cache: "no-store",
+    headers: getRecordingHeaders(apiUrl),
+  });
   const body = (await response.json()) as LiveHealth;
   if (!response.ok) {
     return { mode: "recorded", ready: false };
@@ -77,7 +92,10 @@ export async function runLiveScenario(
 
   const response = await fetch(`${apiUrl}/run`, {
     body: JSON.stringify({ scenarioId }),
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...getRecordingHeaders(apiUrl),
+    },
     method: "POST",
   });
   const body = (await response.json()) as LiveRunResult | { error?: unknown };

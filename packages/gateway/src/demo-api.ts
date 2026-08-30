@@ -103,7 +103,10 @@ function getRuntime(): Promise<DemoRuntime> {
 }
 
 function setCors(response: ServerResponse): void {
-  response.setHeader("Access-Control-Allow-Headers", "content-type");
+  response.setHeader(
+    "Access-Control-Allow-Headers",
+    "content-type,ngrok-skip-browser-warning"
+  );
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   response.setHeader("Access-Control-Allow-Origin", "*");
 }

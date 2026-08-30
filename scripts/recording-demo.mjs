@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 
 const LOCAL_API = "http://127.0.0.1:8787";
 const PUBLIC_PLAYGROUND = "https://zkmcp.zohaibarsalan.me/docs/playground";
-const TUNNEL_PATTERN = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
+const TUNNEL_PATTERN = /https:\/\/[a-z0-9-]+\.ngrok-free\.app/i;
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -31,7 +31,12 @@ async function waitForHealth(url, timeoutMs = 30_000) {
   while (Date.now() < deadline) {
     try {
       // biome-ignore lint/performance/noAwaitInLoops: readiness polling must be sequential.
-      const response = await fetch(`${url}/health`, { cache: "no-store" });
+      const response = await fetch(`${url}/health`, {
+        cache: "no-store",
+        headers: url.includes("ngrok-free.app")
+          ? { "ngrok-skip-browser-warning": "true" }
+          : undefined,
+      });
       if (response.ok) {
         return;
       }
@@ -54,24 +59,6 @@ function pipe(child, stream, output, onChunk) {
 let api;
 let tunnel;
 let cleaning = false;
-
-async function waitForTunnelHealth(url) {
-  try {
-    await waitForHealth(url, 120_000);
-  } catch {
-    if (cleaning) {
-      return;
-    }
-
-    console.warn(
-      "\nCloudflare assigned the tunnel URL, but the public endpoint is still warming up."
-    );
-    console.warn(
-      "Keeping Midnight and the demo API running and continuing to wait instead of tearing everything down.\n"
-    );
-    return waitForTunnelHealth(url);
-  }
-}
 
 async function cleanup(exitCode = 0) {
   if (cleaning) {
@@ -103,6 +90,9 @@ process.on("SIGTERM", () => requestCleanup(0));
 
 try {
   console.log("\nPreparing zkMCP recording environment…\n");
+
+  // Fail before starting Midnight if ngrok is not authenticated/configured.
+  await run("ngrok", ["config", "check"]);
   await run("npm", ["run", "setup:midnight"]);
 
   api = spawn("npm", ["run", "serve:demo-api", "--workspace=@zkmcp/gateway"], {
@@ -120,17 +110,16 @@ try {
 
   await waitForHealth(LOCAL_API);
 
-  console.log("\nStarting temporary HTTPS tunnel…\n");
+  console.log("\nStarting temporary ngrok HTTPS tunnel…\n");
   tunnel = spawn(
-    "cloudflared",
-    ["tunnel", "--url", LOCAL_API, "--no-autoupdate"],
+    "ngrok",
+    ["http", "8787", "--log", "stdout", "--log-format", "json"],
     {
       cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],
     }
   );
 
-  let tunnelUrl;
   let tunnelReadinessStarted = false;
   const observeTunnel = (text) => {
     if (tunnelReadinessStarted) {
@@ -141,23 +130,15 @@ try {
       return;
     }
 
-    [tunnelUrl] = match;
+    const [tunnelUrl] = match;
     tunnelReadinessStarted = true;
     (async () => {
-      const recordingUrl = `${PUBLIC_PLAYGROUND}?live=${encodeURIComponent(tunnelUrl)}`;
-
-      console.log("\nTemporary tunnel assigned:");
-      console.log(tunnelUrl);
-      console.log(
-        "\nWaiting for the public tunnel endpoint to become reachable…\n"
-      );
-
-      await waitForTunnelHealth(tunnelUrl);
-
+      await waitForHealth(tunnelUrl, 20_000);
       if (cleaning) {
         return;
       }
 
+      const recordingUrl = `${PUBLIC_PLAYGROUND}?live=${encodeURIComponent(tunnelUrl)}`;
       console.log(
         "\n╔══════════════════════════════════════════════════════════════╗"
       );
@@ -174,7 +155,7 @@ try {
         "Press Ctrl+C when you are finished; Midnight will be stopped.\n"
       );
     })().catch((error) => {
-      console.error("Unexpected tunnel readiness failure:", error);
+      console.error("ngrok tunnel readiness failed:", error);
       requestCleanup(1);
     });
   };
@@ -182,7 +163,7 @@ try {
   pipe(tunnel, "stdout", process.stdout, observeTunnel);
   pipe(tunnel, "stderr", process.stderr, observeTunnel);
   tunnel.once("error", (error) => {
-    console.error("Could not start cloudflared:", error);
+    console.error("Could not start ngrok:", error);
     requestCleanup(1);
   });
   tunnel.once("exit", (code) => {

@@ -4,8 +4,8 @@ Target: **under 2 minutes**. This is a screen/talking-point guide, not a memoriz
 
 ## Before recording
 
-- Start with `npm run demo:recording`. It starts Midnight, the local demo API, and a temporary Cloudflare HTTPS tunnel.
-- Wait for the terminal to print **zkMCP recording environment ready**, then open the exact hosted playground URL it prints. The temporary `?live=https://...trycloudflare.com` parameter opts only your recording tab into the tunnel; ordinary visitors remain in recorded mode.
+- Start with `npm run demo:recording`. It starts Midnight, the local demo API, and a temporary ngrok HTTPS tunnel.
+- Wait for the terminal to print **zkMCP recording environment ready**, then open the exact hosted playground URL it prints. The temporary `?live=https://...ngrok-free.app` parameter opts only your recording tab into the tunnel; ordinary visitors remain in recorded mode.
 - Keep a terminal with the Midnight proof-server logs available in another window/tab.
 - Use the docs in dark mode.
 - Have the hosted `/docs`, `/docs/architecture`, and the exact live playground URL printed by `npm run demo:recording` ready.
