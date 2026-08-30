@@ -55,6 +55,24 @@ let api;
 let tunnel;
 let cleaning = false;
 
+async function waitForTunnelHealth(url) {
+  try {
+    await waitForHealth(url, 120_000);
+  } catch {
+    if (cleaning) {
+      return;
+    }
+
+    console.warn(
+      "\nCloudflare assigned the tunnel URL, but the public endpoint is still warming up."
+    );
+    console.warn(
+      "Keeping Midnight and the demo API running and continuing to wait instead of tearing everything down.\n"
+    );
+    return waitForTunnelHealth(url);
+  }
+}
+
 async function cleanup(exitCode = 0) {
   if (cleaning) {
     return;
@@ -126,8 +144,20 @@ try {
     [tunnelUrl] = match;
     tunnelReadinessStarted = true;
     (async () => {
-      await waitForHealth(tunnelUrl, 45_000);
       const recordingUrl = `${PUBLIC_PLAYGROUND}?live=${encodeURIComponent(tunnelUrl)}`;
+
+      console.log("\nTemporary tunnel assigned:");
+      console.log(tunnelUrl);
+      console.log(
+        "\nWaiting for the public tunnel endpoint to become reachable…\n"
+      );
+
+      await waitForTunnelHealth(tunnelUrl);
+
+      if (cleaning) {
+        return;
+      }
+
       console.log(
         "\n╔══════════════════════════════════════════════════════════════╗"
       );
@@ -144,7 +174,7 @@ try {
         "Press Ctrl+C when you are finished; Midnight will be stopped.\n"
       );
     })().catch((error) => {
-      console.error("Tunnel health check failed:", error);
+      console.error("Unexpected tunnel readiness failure:", error);
       requestCleanup(1);
     });
   };
